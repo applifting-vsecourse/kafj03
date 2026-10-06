@@ -17,6 +17,25 @@ const aQuack = (overrides: Partial<Quack> = {}): Quack => ({
 });
 
 describe('QuacksService', () => {
+  it.each(['happy', 'sad', 'angry', 'silly'] as const)(
+    'persists %s mood',
+    async (mood) => {
+      const repository = mock<QuackRepository>();
+      repository.createQuack.mockResolvedValue(aQuack({ mood }));
+      const service = new QuacksService(repository);
+      const created = await service.createQuack({ id: 'u1' } as Identity, {
+        text: 'hello',
+        mood,
+      });
+      expect(repository.createQuack).toHaveBeenCalledWith({
+        text: 'hello',
+        mood,
+        userId: 'u1',
+      });
+      expect(created.mood).toBe(mood);
+    },
+  );
+
   it('returns quacks from the repository', async () => {
     const quacks = [aQuack()];
     const repository = mock<QuackRepository>();
@@ -43,6 +62,7 @@ describe('QuacksService', () => {
     expect(repository.createQuack).toHaveBeenCalledWith({
       text: 'hello',
       userId: 'u1',
+      mood: undefined,
     });
   });
 });

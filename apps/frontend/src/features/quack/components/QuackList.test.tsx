@@ -16,6 +16,16 @@ const quack = (overrides: Partial<Quack> = {}): Quack => ({
 })
 
 describe("QuackList", () => {
+  it.each(["happy", "sad", "angry", "silly"] as const)("renders %s mood", (mood) => {
+    render(<QuackList quacks={[quack({ mood })]} />)
+    expect(screen.getByLabelText(`Mood: ${mood}`)).toHaveTextContent(mood)
+  })
+
+  it("adds no mood label for existing posts", () => {
+    const { container } = render(<QuackList quacks={[quack(), quack({ id: "q2", mood: null })]} />)
+    expect(container.querySelector('[aria-label^="Mood:"]')).toBeNull()
+  })
+
   it("renders quacks with author info", () => {
     render(<QuackList quacks={[quack()]} />)
 

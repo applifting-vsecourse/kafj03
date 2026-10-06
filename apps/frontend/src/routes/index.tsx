@@ -19,6 +19,7 @@ export const Route = createFileRoute("/")({
 const SAMPLE_QUACKS: Quack[] = [
   {
     id: "sample-1",
+    mood: "silly",
     text: "me: throws one crumb into the pond\nducks: assemble like the Avengers\ni fear i may have started something",
     userId: "sample-user-1",
     createdAt: new Date("2026-09-22T09:12:00"),

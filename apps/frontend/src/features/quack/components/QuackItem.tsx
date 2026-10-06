@@ -31,6 +31,14 @@ export function QuackItem({ quack }: QuackItemProps) {
           <span className="text-xs text-muted-foreground">·</span>
           <time className="text-xs text-muted-foreground">{formatDate(quack.createdAt)}</time>
         </div>
+        {quack.mood ? (
+          <span
+            className="w-fit rounded-full bg-muted px-2 py-0.5 text-xs"
+            aria-label={`Mood: ${quack.mood}`}
+          >
+            {quack.mood}
+          </span>
+        ) : null}
         <p className="text-sm break-words whitespace-pre-line">{quack.text}</p>
       </div>
     </article>
