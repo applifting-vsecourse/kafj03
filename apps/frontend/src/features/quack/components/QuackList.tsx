@@ -11,13 +11,26 @@ type QuackListProps = {
   isLoading?: boolean
   error?: Error
   onReload?: () => void
+  emptyMessage?: string
+  onOpen?: (id: string) => void
 }
 
-export function QuackList({ quacks, isLoading, error, onReload }: QuackListProps) {
+export function QuackList({
+  quacks,
+  isLoading,
+  error,
+  onReload,
+  emptyMessage,
+  onOpen,
+}: QuackListProps) {
   return (
     <div className="flex flex-col">
-      {isLoading && quacks.length === 0 ? (
-        <div className="flex items-center justify-center py-8 text-muted-foreground">
+      {isLoading ? (
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 py-8 text-muted-foreground"
+        >
+          <span>Loading posts…</span>
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : null}
@@ -46,7 +59,7 @@ export function QuackList({ quacks, isLoading, error, onReload }: QuackListProps
 
       {!isLoading && !error && quacks.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No quacks yet. Post the first one.
+          {emptyMessage ?? "No quacks yet. Post the first one."}
         </p>
       ) : null}
 
@@ -54,6 +67,7 @@ export function QuackList({ quacks, isLoading, error, onReload }: QuackListProps
         <QuackItem
           key={quack.id}
           quack={quack}
+          onOpen={onOpen ? () => onOpen(quack.id) : undefined}
         />
       ))}
     </div>
