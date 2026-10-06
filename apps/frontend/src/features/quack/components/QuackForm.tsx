@@ -22,6 +22,7 @@ import { useAddQuack } from "@/features/quack/hooks/useAddQuack"
 // Mirrors the server-side DTO (MaxLength(280)) so the user is told before
 // the request is made — the server still validates independently.
 const MAX_LENGTH = 280
+const MOOD_EMOJI = { happy: "😊", sad: "😢", angry: "😠", silly: "🤪" }
 
 const schema = z.object({
   mood: z.union([z.literal(""), quackMoodSchema]),
@@ -91,24 +92,27 @@ export function QuackForm({ className }: QuackFormProps) {
             name="mood"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mood (optional)</FormLabel>
-                <FormControl>
-                  <select
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    disabled={addQuack.isPending}
-                    {...field}
-                  >
-                    <option value="">No mood</option>
+                <fieldset disabled={addQuack.isPending}>
+                  <legend className="mb-2 text-sm font-medium">Mood (optional)</legend>
+                  <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
                     {quackMoodSchema.options.map((mood) => (
-                      <option
+                      <Button
                         key={mood}
-                        value={mood}
+                        type="button"
+                        size="icon"
+                        variant={field.value === mood ? "secondary" : "outline"}
+                        className={cn("text-xl", field.value === mood && "ring-2 ring-primary")}
+                        aria-label={mood}
+                        aria-pressed={field.value === mood}
+                        title={mood}
+                        onClick={() => field.onChange(field.value === mood ? "" : mood)}
+                        onBlur={field.onBlur}
                       >
-                        {mood}
-                      </option>
+                        <span aria-hidden="true">{MOOD_EMOJI[mood]}</span>
+                      </Button>
                     ))}
-                  </select>
-                </FormControl>
+                  </div>
+                </fieldset>
                 <FormMessage />
               </FormItem>
             )}
