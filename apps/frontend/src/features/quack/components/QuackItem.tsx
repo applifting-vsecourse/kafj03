@@ -1,13 +1,14 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/date"
 
 import type { Quack } from "@/features/quack/api/quackSchemas"
 import { UsersName } from "@/features/quack/components/UsersName"
 import { UsersUserName } from "@/features/quack/components/UsersUserName"
 
-type QuackItemProps = { quack: Quack }
+type QuackItemProps = { quack: Quack; onOpen?: () => void }
 
-export function QuackItem({ quack }: QuackItemProps) {
+export function QuackItem({ quack, onOpen }: QuackItemProps) {
   const { name, username } = quack.user
 
   const initials = name
@@ -40,6 +41,17 @@ export function QuackItem({ quack }: QuackItemProps) {
           </span>
         ) : null}
         <p className="text-sm break-words whitespace-pre-line">{quack.text}</p>
+        {onOpen ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-fit"
+            onClick={onOpen}
+            aria-label={`Open post by ${name}`}
+          >
+            Open post
+          </Button>
+        ) : null}
       </div>
     </article>
   )

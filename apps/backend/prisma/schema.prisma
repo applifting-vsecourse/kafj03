@@ -93,17 +93,18 @@ model Verification {
 }
 
 model User {
-  id            String    @id
+  id            String        @id
   name          String
   email         String
   emailVerified Boolean
-  image         String?   @db.Text
+  image         String?       @db.Text
   createdAt     DateTime
   updatedAt     DateTime
   sessions      Session[]
   accounts      Account[]
   quacks        Quack[]
-  role          UserRole  @default(user)
+  searchUsage   SearchUsage[]
+  role          UserRole      @default(user)
 
   username        String? @db.VarChar(50)
   displayUsername String? @db.VarChar(50)
@@ -111,4 +112,15 @@ model User {
   @@unique([email])
   @@unique([username])
   @@map("user")
+}
+
+model SearchUsage {
+  userId   String
+  day      DateTime @db.Date
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  searched Boolean  @default(false)
+  opened   Boolean  @default(false)
+
+  @@id([userId, day])
+  @@map("search_usage")
 }

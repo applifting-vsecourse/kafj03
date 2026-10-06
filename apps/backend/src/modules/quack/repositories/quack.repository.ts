@@ -32,6 +32,19 @@ const mapPrismaQuackToDomain = (
 export class QuackRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async recordUsage(
+    userId: string,
+    event: 'feed' | 'search' | 'open',
+  ): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO "search_usage" ("userId", "day", "searched", "opened")
+      VALUES (${userId}, (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date, ${event !== 'feed'}, ${event === 'open'})
+      ON CONFLICT ("userId", "day") DO UPDATE SET
+        "searched" = "search_usage"."searched" OR EXCLUDED."searched",
+        "opened" = "search_usage"."opened" OR EXCLUDED."opened"
+    `;
+  }
+
   async getQuacks(): Promise<Quack[]> {
     const quacks = await this.prisma.quack.findMany({
       include: { user: true },
