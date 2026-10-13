@@ -1,3 +1,4 @@
+import { CreatePoll } from '@/modules/quack/domain/poll';
 import { Quack, QuackMood } from '@/modules/quack/domain/quack';
 import { searchQuacks } from '@/modules/quack/domain/search-quacks';
 import { QuackRepository } from '@/modules/quack/repositories/quack.repository';
@@ -21,11 +22,12 @@ export class QuacksService {
 
   async createQuack(
     user: Identity,
-    quackData: { text: string; mood?: QuackMood | null },
+    quackData: { text: string; mood?: QuackMood | null; poll?: CreatePoll },
   ): Promise<Quack> {
     return this.quackRepository.createQuack({
       text: quackData.text,
       mood: quackData.mood,
+      ...(quackData.poll ? { poll: quackData.poll } : {}),
       // the author is taken from the session, never from the request body
       userId: user.id,
     });

@@ -1,0 +1,84 @@
+import { PrismaService } from '@/core/prisma/prisma.service';
+import { PollResult } from '@/modules/quack/domain/poll';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
+@Injectable()
+export class PollRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async vote(
+    quackId: string,
+    userId: string,
+    optionId: string,
+  ): Promise<PollResult> {
+    return this.prisma.$transaction(async (tx) => {
+      // Every vote writer locks the poll first. ReadCommitted sees previously
+      // committed votes, including writes from another device.
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "poll" WHERE "quackId" = ${quackId} FOR UPDATE
+      `;
+      const pollId = locked[0]?.id;
+      if (!pollId) throw new NotFoundException('Poll not found');
+      const option = await tx.pollOption.findUnique({
+        where: { pollId_id: { pollId, id: optionId } },
+      });
+      if (!option)
+        throw new BadRequestException('Option does not belong to this poll');
+      const previous = await tx.pollVote.findUnique({
+        where: { pollId_userId: { pollId, userId } },
+      });
+      if (previous?.optionId !== optionId) {
+        await tx.pollVote.upsert({
+          where: { pollId_userId: { pollId, userId } },
+          create: { pollId, userId, optionId },
+          update: { optionId },
+        });
+        await tx.poll.update({
+          where: { id: pollId },
+          data: { revision: { increment: 1 } },
+        });
+        await tx.$executeRaw`
+          UPDATE "poll_usage" SET "firstVotedAt" = CURRENT_TIMESTAMP
+          WHERE "pollId" = ${pollId} AND "firstVotedAt" IS NULL
+        `;
+        await tx.$executeRaw`
+          INSERT INTO "poll_voter_usage" ("userId", "firstVotedAt")
+          VALUES (${userId}, CURRENT_TIMESTAMP) ON CONFLICT ("userId") DO NOTHING
+        `;
+      }
+      const poll = await tx.poll.findUniqueOrThrow({
+        where: { id: pollId },
+        include: {
+          options: {
+            orderBy: { position: 'asc' },
+            include: { _count: { select: { votes: true } } },
+          },
+        },
+      });
+      const totalVotes = poll.options.reduce(
+        (total, item) => total + item._count.votes,
+        0,
+      );
+      return {
+        id: poll.id,
+        question: poll.question,
+        revision: poll.revision,
+        totalVotes,
+        myOptionId: optionId,
+        options: poll.options.map((item) => ({
+          id: item.id,
+          text: item.text,
+          position: item.position,
+          votes: item._count.votes,
+          percentage: totalVotes
+            ? Math.round((item._count.votes * 100) / totalVotes)
+            : 0,
+        })),
+      };
+    });
+  }
+}

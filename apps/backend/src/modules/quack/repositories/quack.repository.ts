@@ -3,6 +3,7 @@ import {
   Quack as PrismaQuack,
   User as PrismaUser,
 } from '@/generated/prisma/client';
+import { CreatePoll } from '@/modules/quack/domain/poll';
 import { Quack, QuackMood } from '@/modules/quack/domain/quack';
 import { Injectable } from '@nestjs/common';
 
@@ -57,14 +58,37 @@ export class QuackRepository {
     text: string;
     mood?: QuackMood | null;
     userId: string;
+    poll?: CreatePoll;
   }): Promise<Quack> {
-    const quack = await this.prisma.quack.create({
-      data: {
-        text: createQuackData.text,
-        mood: createQuackData.mood,
-        user: { connect: { id: createQuackData.userId } },
-      },
-      include: { user: true },
+    const quack = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.quack.create({
+        data: {
+          text: createQuackData.text,
+          mood: createQuackData.mood,
+          user: { connect: { id: createQuackData.userId } },
+          ...(createQuackData.poll
+            ? {
+                poll: {
+                  create: {
+                    question: createQuackData.poll.question,
+                    options: {
+                      create: createQuackData.poll.options.map(
+                        (text, position) => ({ text, position }),
+                      ),
+                    },
+                  },
+                },
+              }
+            : {}),
+        },
+        include: { user: true, poll: true },
+      });
+      if (created.poll) {
+        await tx.pollUsage.create({
+          data: { pollId: created.poll.id, createdAt: created.poll.createdAt },
+        });
+      }
+      return created;
     });
     return mapPrismaQuackToDomain(quack);
   }

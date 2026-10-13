@@ -21,6 +21,7 @@
     "start:migrate:prod": "prisma migrate deploy && npm run start:prod",
     "lint:check": "eslint \"src/**/*.ts\"",
     "test": "jest",
+    "test:polls:integration": "POLL_DB_TESTS=1 jest --runInBand poll.repository.integration.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
