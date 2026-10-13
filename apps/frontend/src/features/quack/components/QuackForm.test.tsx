@@ -50,6 +50,21 @@ describe("QuackForm", () => {
     await waitFor(() => expect(mutate).toHaveBeenCalledWith({ text: "hello" }, expect.any(Object)))
   })
 
+  it("preselects default mood and restores it after posting", async () => {
+    mutate.mockImplementation((_input: unknown, callbacks: { onSuccess: () => void }) =>
+      callbacks.onSuccess(),
+    )
+    render(<QuackForm defaultMood="sad" />)
+    expect(screen.getByRole("button", { name: "sad" })).toHaveAttribute("aria-pressed", "true")
+    await userEvent.type(screen.getByRole("textbox"), "hello")
+    await userEvent.click(screen.getByRole("button", { name: "happy" }))
+    await userEvent.click(screen.getByRole("button", { name: "Quack" }))
+    await waitFor(() =>
+      expect(mutate).toHaveBeenCalledWith({ text: "hello", mood: "happy" }, expect.any(Object)),
+    )
+    expect(screen.getByRole("button", { name: "sad" })).toHaveAttribute("aria-pressed", "true")
+  })
+
   it("omits mood when none is selected", async () => {
     render(<QuackForm />)
     await userEvent.type(screen.getByRole("textbox"), "hello")

@@ -7,6 +7,8 @@ export const betterAuthCoreConfig: BetterAuthOptions = {
   },
   user: {
     additionalFields: {
+      bio: { type: 'string', required: false, input: false },
+      defaultMood: { type: 'string', required: false, input: false },
       role: {
         type: 'string',
         required: true,
@@ -15,5 +17,12 @@ export const betterAuthCoreConfig: BetterAuthOptions = {
       },
     },
   },
-  plugins: [openAPI(), username()],
+  plugins: [
+    openAPI(),
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 30,
+      usernameNormalization: false,
+    }),
+  ],
 };
