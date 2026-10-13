@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from "react"
 import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { api, HTTPError } from "@/lib/api-client"
+import { quackSessionGeneration } from "@/lib/quack-cache"
 
 import { optimisticVote, storePoll } from "@/features/quack/api/pollState"
 import { pollSync } from "@/features/quack/api/pollSync"
@@ -27,6 +28,7 @@ export function usePoll(quackId: string, initialPoll: Poll) {
   )
   const sync = pollSync(queryClient)
   const syncStatus = useSyncExternalStore(sync.subscribe, sync.snapshot, () => "connecting")
+  const canVote = isOnline && syncStatus !== "disconnected"
   const mutationKey = [...quackKeys.poll(quackId), "vote"]
   const query = useQuery({
     queryKey: quackKeys.poll(quackId),
@@ -58,10 +60,16 @@ export function usePoll(quackId: string, initialPoll: Poll) {
     mutationKey,
     networkMode: "always",
     mutationFn: (optionId: string) => vote(quackId, optionId),
-    onSuccess: (result) => storePoll(queryClient, quackId, result),
+    onMutate: () => quackSessionGeneration(queryClient),
+    onSuccess: (result, _optionId, generation) => {
+      if (generation === quackSessionGeneration(queryClient)) {
+        storePoll(queryClient, quackId, result)
+      }
+    },
     // A failed or timed-out request may still have committed on the server.
     // Reload the actual choice; the optimistic display never overwrites confirmed data.
-    onError: () => {
+    onError: (_error, _optionId, generation) => {
+      if (generation !== quackSessionGeneration(queryClient)) return
       void queryClient.invalidateQueries({ queryKey: quackKeys.poll(quackId) })
     },
   })
@@ -89,11 +97,12 @@ export function usePoll(quackId: string, initialPoll: Poll) {
     poll: displayed,
     isPending,
     isOnline,
+    canVote,
     errorMessage,
     isStale: !isOnline || query.isError || syncStatus !== "connected",
     select: (optionId: string) => {
       if (
-        !isOnline ||
+        !canVote ||
         queryClient.isMutating({ mutationKey, exact: true }) ||
         optionId === confirmed.myOptionId
       ) {
@@ -102,7 +111,7 @@ export function usePoll(quackId: string, initialPoll: Poll) {
       mutation.mutate(optionId)
     },
     retry: () => {
-      if (latest?.optionId && isOnline && !queryClient.isMutating({ mutationKey, exact: true })) {
+      if (latest?.optionId && canVote && !queryClient.isMutating({ mutationKey, exact: true })) {
         mutation.mutate(latest.optionId)
       }
     },

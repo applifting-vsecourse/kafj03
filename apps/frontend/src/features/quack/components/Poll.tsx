@@ -6,7 +6,7 @@ import type { Poll as PollData } from "@/features/quack/api/quackSchemas"
 import { usePoll } from "@/features/quack/hooks/usePoll"
 
 export function Poll({ quackId, poll: initialPoll }: { quackId: string; poll: PollData }) {
-  const { poll, isPending, isOnline, isStale, errorMessage, select, retry } = usePoll(
+  const { poll, isPending, isOnline, canVote, isStale, errorMessage, select, retry } = usePoll(
     quackId,
     initialPoll,
   )
@@ -29,7 +29,7 @@ export function Poll({ quackId, poll: initialPoll }: { quackId: string; poll: Po
             variant={poll.myOptionId === option.id ? "secondary" : "outline"}
             className="h-auto justify-between gap-3 text-left whitespace-normal"
             aria-pressed={poll.myOptionId === option.id}
-            disabled={isPending || !isOnline}
+            disabled={isPending || !canVote}
             onClick={() => select(option.id)}
           >
             <span className="min-w-0 break-words">{option.text}</span>
@@ -72,7 +72,7 @@ export function Poll({ quackId, poll: initialPoll }: { quackId: string; poll: Po
             type="button"
             variant="outline"
             size="sm"
-            disabled={isPending || !isOnline}
+            disabled={isPending || !canVote}
             onClick={retry}
           >
             Retry vote

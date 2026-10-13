@@ -116,6 +116,16 @@ describe("poll synchronization", () => {
     await vi.waitFor(() => expect(sync.snapshot()).toBe("disconnected"))
   })
 
+  it("recovers from a failed refresh on the next heartbeat", async () => {
+    const { source, fetch, sync } = setup()
+    fetch.mockRejectedValueOnce(new Error("Unavailable")).mockResolvedValue(initial)
+    source.send("ready")
+    await vi.waitFor(() => expect(sync.snapshot()).toBe("disconnected"))
+    source.send("heartbeat")
+    await vi.waitFor(() => expect(sync.snapshot()).toBe("connected"))
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it("detects a silent connection loss and replaces the stream", async () => {
     vi.useFakeTimers()
     const { sync, source } = setup()

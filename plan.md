@@ -58,3 +58,17 @@ První konkrétní krok je migrace a backend hlasování. Největší riziko sto
 ## Jazyk aplikace
 
 Projekt vyžaduje anglické texty aplikace. Česká story zůstane zachovaná, ale hlášky v UI budou anglicky.
+
+## Stav implementace a ověření
+
+- [x] Schéma a migrace.
+- [x] Vytvoření ankety a transakční hlasování.
+- [x] Načítání seznamu a detailu, frontendová schémata a mazání vlastního příspěvku.
+- [x] Formulář ankety s validací a zachováním hodnot při chybě.
+- [x] Hlasovací UI, optimistická odezva a timeout 10 sekund.
+- [x] SSE synchronizace přes PostgreSQL LISTEN/NOTIFY, obnova po výpadku a test doručení do 2 sekund.
+- [x] Report používání a závěrečné ověření.
+
+Report se spouští příkazem `pnpm backend polls:report <čas-zpřístupnění-v-UTC>`, například `pnpm backend polls:report 2026-10-13T10:00:00Z`. Uvedený čas je pouze příklad; při skutečném zpřístupnění je potřeba zaznamenat jeho čas. Report před uplynutím 30 dní je označen jako průběžný. Podrobnosti jsou v `apps/backend/README.md`.
+
+Ověřeno 46 backendovými testy, 60 frontendovými testy a 14 integračními testy nad PostgreSQL. Kontroly zahrnují souběžné hlasování, opakování a změnu volby, SSE, obnovu spojení, timeout, změnu účtu, hranice reportovaného období a zachování metrik po smazání ankety. Prošly lint, typová kontrola, oba buildy a kontrola formátování.

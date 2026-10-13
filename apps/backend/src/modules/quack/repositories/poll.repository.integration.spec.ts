@@ -1,5 +1,6 @@
 import { PollsController } from '@/modules/quack/controllers/polls.controller';
 import { PollEventsService } from '@/modules/quack/services/poll-events.service';
+import { generatePollReport } from '@/scripts/polls/poll-report';
 import { AuthenticatedUserGuard } from '@/shared/auth/guards/authenticated-user.guard';
 import { Test } from '@nestjs/testing';
 import { filter, firstValueFrom, timeout } from 'rxjs';
@@ -30,6 +31,7 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
   const users = Array.from({ length: 12 }, () => `poll-test-${randomUUID()}`);
   const quackIds: string[] = [];
   const pollIds: string[] = [];
+  const reportUserIds: string[] = [];
   let quackId: string;
   let pollId: string;
   let options: string[];
@@ -76,7 +78,7 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
       await prisma.quack.deleteMany({ where: { id: { in: quackIds } } });
       await prisma.pollUsage.deleteMany({ where: { pollId: { in: pollIds } } });
       await prisma.pollVoterUsage.deleteMany({
-        where: { userId: { in: users } },
+        where: { userId: { in: [...users, ...reportUserIds] } },
       });
       await prisma.user.deleteMany({ where: { id: { in: users } } });
     } finally {
@@ -392,9 +394,64 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('reports a half-open 30-day cohort without texts or choices', async () => {
+    const start = new Date('2120-01-01T00:00:00Z');
+    const end = new Date('2120-01-31T00:00:00Z');
+    const at = (offset: number): Date => new Date(start.getTime() + offset);
+    const records = [
+      { createdAt: at(-1), firstVotedAt: start },
+      { createdAt: start, firstVotedAt: start },
+      { createdAt: at(1), firstVotedAt: new Date(end.getTime() - 1) },
+      { createdAt: new Date(end.getTime() - 1), firstVotedAt: null },
+      { createdAt: at(2), firstVotedAt: end },
+      { createdAt: end, firstVotedAt: end },
+    ].map((record) => ({ ...record, pollId: `report-test-${randomUUID()}` }));
+    pollIds.push(...records.map((record) => record.pollId));
+    await prisma.pollUsage.createMany({ data: records });
+    const voterRecords = [at(-1), start, new Date(end.getTime() - 1), end].map(
+      (firstVotedAt) => ({
+        userId: `report-test-${randomUUID()}`,
+        firstVotedAt,
+      }),
+    );
+    reportUserIds.push(...voterRecords.map((record) => record.userId));
+    await prisma.pollVoterUsage.createMany({ data: voterRecords });
+    const report = await generatePollReport(prisma, start, end);
+    expect(report).toEqual({
+      periodStart: start.toISOString(),
+      periodEndExclusive: end.toISOString(),
+      generatedAt: end.toISOString(),
+      isComplete: true,
+      createdPolls: 4,
+      pollsWithVotes: 2,
+      pollsWithVotesShare: 0.5,
+      uniqueVoters: 2,
+    });
+    const emptyStart = new Date('2121-01-01T00:00:00Z');
+    expect(
+      await generatePollReport(
+        prisma,
+        emptyStart,
+        new Date('2121-01-02T00:00:00Z'),
+      ),
+    ).toMatchObject({
+      isComplete: false,
+      createdPolls: 0,
+      pollsWithVotes: 0,
+      pollsWithVotesShare: 0,
+      uniqueVoters: 0,
+    });
+  });
+
   it('cascades deletion through votes while preserving report records', async () => {
     await polls.vote(quackId, users[0], options[0]);
+    const launch = new Date(Date.now() - 60_000);
+    const generatedAt = new Date();
+    const before = await generatePollReport(prisma, launch, generatedAt);
     await quacks.deleteQuack(quackId, users[0]);
+    expect(await generatePollReport(prisma, launch, generatedAt)).toEqual(
+      before,
+    );
     expect(await prisma.poll.count({ where: { id: pollId } })).toBe(0);
     expect(await prisma.pollOption.count({ where: { pollId } })).toBe(0);
     expect(await prisma.pollVote.count({ where: { pollId } })).toBe(0);

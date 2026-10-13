@@ -3,19 +3,25 @@ import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { resetQuackSession } from "@/lib/quack-cache"
+
 import { quackKeys } from "@/features/quack/api/quackKeys"
 import type { Poll as PollData } from "@/features/quack/api/quackSchemas"
 
 import { Poll } from "./Poll"
 
-const { vote, get } = vi.hoisted(() => ({ vote: vi.fn(), get: vi.fn() }))
+const { vote, get, syncState } = vi.hoisted(() => ({
+  vote: vi.fn(),
+  get: vi.fn(),
+  syncState: { status: "connected" },
+}))
 vi.mock("@/features/quack/api/vote", () => ({ vote }))
 vi.mock("@/lib/api-client", async () => {
   const { HTTPError } = await import("ky")
   return { api: { get }, HTTPError }
 })
 vi.mock("@/features/quack/api/pollSync", () => ({
-  pollSync: () => ({ subscribe: () => () => undefined, snapshot: () => "connected" }),
+  pollSync: () => ({ subscribe: () => () => undefined, snapshot: () => syncState.status }),
 }))
 const initial: PollData = {
   id: "p",
@@ -66,6 +72,7 @@ function deferred<T>() {
 
 describe("Poll voting", () => {
   beforeEach(() => {
+    syncState.status = "connected"
     vote.mockReset()
     get.mockReset()
     get.mockReturnValue({
@@ -183,6 +190,37 @@ describe("Poll voting", () => {
     setup(saved)
     await userEvent.click(screen.getByRole("button", { name: /Pizza/ }))
     expect(vote).not.toHaveBeenCalled()
+  })
+
+  it("ignores a late vote confirmation after changing accounts", async () => {
+    const pending = deferred<PollData>()
+    vote.mockReturnValue(pending.promise)
+    const view = setup()
+    await userEvent.click(screen.getByRole("button", { name: /Pizza/ }))
+    await waitFor(() => expect(screen.getByText("Saving vote…")).toBeInTheDocument())
+    view.unmount()
+    await resetQuackSession(client)
+    await act(async () => {
+      pending.resolve(saved)
+      await pending.promise
+    })
+    await waitFor(() => expect(client.getMutationCache().getAll()).toHaveLength(0))
+    expect(client.getQueryData(quackKeys.poll("q"))).toBeUndefined()
+  })
+
+  it("blocks voting while synchronization is disconnected", () => {
+    const view = setup()
+    syncState.status = "disconnected"
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <Poll
+          quackId="q"
+          poll={initial}
+        />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText(/Results may be out of date/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Pizza/ })).toBeDisabled()
   })
 
   it("disables voting and marks results stale while offline", () => {

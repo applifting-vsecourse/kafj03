@@ -50,6 +50,19 @@ class PollSync {
     }
   }
 
+  private refresh(source: EventSource, generation: number): void {
+    void this.queryClient
+      .refetchQueries({ queryKey: quackKeys.polls(), type: "active" }, { throwOnError: true })
+      .then(() => {
+        if (this.generation === generation && source.readyState === EventSource.OPEN) {
+          this.setStatus("connected")
+        }
+      })
+      .catch(() => {
+        if (this.generation === generation) this.setStatus("disconnected")
+      })
+  }
+
   private connect(): void {
     const generation = ++this.generation
     this.lastMessageAt = Date.now()
@@ -61,20 +74,12 @@ class PollSync {
     }
     source.addEventListener("heartbeat", () => {
       this.lastMessageAt = Date.now()
+      if (this.status === "disconnected") this.refresh(source, generation)
     })
     source.addEventListener("ready", () => {
       this.lastMessageAt = Date.now()
       // Every reconnect reloads open polls: NOTIFY is intentionally not a replay log.
-      void this.queryClient
-        .refetchQueries({ queryKey: quackKeys.polls(), type: "active" }, { throwOnError: true })
-        .then(() => {
-          if (this.generation === generation && source.readyState === EventSource.OPEN) {
-            this.setStatus("connected")
-          }
-        })
-        .catch(() => {
-          if (this.generation === generation) this.setStatus("disconnected")
-        })
+      this.refresh(source, generation)
     })
     source.addEventListener("poll-changed", (event) => {
       this.lastMessageAt = Date.now()
