@@ -4,6 +4,7 @@ import { useMutation, useMutationState, useQuery, useQueryClient } from "@tansta
 import { api, HTTPError } from "@/lib/api-client"
 
 import { optimisticVote, storePoll } from "@/features/quack/api/pollState"
+import { pollSync } from "@/features/quack/api/pollSync"
 import { quackKeys } from "@/features/quack/api/quackKeys"
 import { quackSchema, type Poll } from "@/features/quack/api/quackSchemas"
 import { vote } from "@/features/quack/api/vote"
@@ -24,6 +25,8 @@ export function usePoll(quackId: string, initialPoll: Poll) {
     () => navigator.onLine,
     () => true,
   )
+  const sync = pollSync(queryClient)
+  const syncStatus = useSyncExternalStore(sync.subscribe, sync.snapshot, () => "connecting")
   const mutationKey = [...quackKeys.poll(quackId), "vote"]
   const query = useQuery({
     queryKey: quackKeys.poll(quackId),
@@ -46,6 +49,10 @@ export function usePoll(quackId: string, initialPoll: Poll) {
       storePoll(queryClient, quackId, initialPoll)
     }
   }, [initialPoll, quackId, queryClient])
+
+  useEffect(() => {
+    storePoll(queryClient, quackId, query.data)
+  }, [query.data, queryClient, quackId])
 
   const mutation = useMutation({
     mutationKey,
@@ -83,7 +90,7 @@ export function usePoll(quackId: string, initialPoll: Poll) {
     isPending,
     isOnline,
     errorMessage,
-    isStale: !isOnline || query.isError,
+    isStale: !isOnline || query.isError || syncStatus !== "connected",
     select: (optionId: string) => {
       if (
         !isOnline ||

@@ -1,3 +1,8 @@
+import { PollsController } from '@/modules/quack/controllers/polls.controller';
+import { PollEventsService } from '@/modules/quack/services/poll-events.service';
+import { AuthenticatedUserGuard } from '@/shared/auth/guards/authenticated-user.guard';
+import { Test } from '@nestjs/testing';
+import { filter, firstValueFrom, timeout } from 'rxjs';
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@/core/prisma/prisma.service';
@@ -9,12 +14,17 @@ import {
 import { PollRepository } from './poll.repository';
 import { QuackRepository } from './quack.repository';
 
+jest.mock('@/shared/auth/guards/authenticated-user.guard', () => ({
+  AuthenticatedUserGuard: class {},
+}));
+
 // Explicit opt-in: writes isolated fixtures to the configured local database.
 const databaseDescribe =
   process.env.POLL_DB_TESTS === '1' ? describe : describe.skip;
 
 databaseDescribe('Poll repository (PostgreSQL)', () => {
   let prisma: PrismaService;
+  let listeners: PollEventsService[];
   let polls: PollRepository;
   let quacks: QuackRepository;
   const users = Array.from({ length: 12 }, () => `poll-test-${randomUUID()}`);
@@ -27,6 +37,8 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
+    listeners = [new PollEventsService(), new PollEventsService()];
+    await Promise.all(listeners.map((listener) => listener.onModuleInit()));
     polls = new PollRepository(prisma);
     quacks = new QuackRepository(prisma);
     await prisma.user.createMany({
@@ -68,7 +80,129 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
       });
       await prisma.user.deleteMany({ where: { id: { in: users } } });
     } finally {
+      await Promise.all(
+        listeners.map((listener) => listener.onModuleDestroy()),
+      );
       await prisma.$disconnect();
+    }
+  });
+
+  it('streams a committed vote over HTTP SSE within two seconds', async () => {
+    const module = await Test.createTestingModule({
+      controllers: [PollsController],
+      providers: [
+        { provide: PollRepository, useValue: polls },
+        { provide: PollEventsService, useValue: listeners[0] },
+      ],
+    })
+      .overrideGuard(AuthenticatedUserGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+    // Avoid owning the shared listener's lifecycle in this temporary HTTP server.
+    const listenerInit = jest
+      .spyOn(listeners[0], 'onModuleInit')
+      .mockResolvedValue();
+    const listenerDestroy = jest
+      .spyOn(listeners[0], 'onModuleDestroy')
+      .mockResolvedValue();
+    const app = module.createNestApplication({ logger: false });
+    app.setGlobalPrefix('api');
+    const abort = new AbortController();
+    const deadline = setTimeout(() => abort.abort(), 2000);
+    try {
+      await app.listen(0, '127.0.0.1');
+      const response = await fetch(
+        `${await app.getUrl()}/api/quacks/polls/events`,
+        { signal: abort.signal },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(
+        'text/event-stream',
+      );
+      expect(response.headers.get('x-accel-buffering')).toBe('no');
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let received = '';
+      while (!received.includes('event: ready')) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error('SSE closed before ready');
+        received += decoder.decode(chunk.value);
+      }
+      const startedAt = Date.now();
+      await polls.vote(quackId, users[0], options[0]);
+      while (
+        !received.includes('event: poll-changed') ||
+        !received.includes(quackId)
+      ) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error('SSE closed before vote');
+        received += decoder.decode(chunk.value);
+      }
+      expect(Date.now() - startedAt).toBeLessThan(2000);
+      await reader.cancel();
+    } finally {
+      clearTimeout(deadline);
+      abort.abort();
+      await app.close();
+      listenerInit.mockRestore();
+      listenerDestroy.mockRestore();
+    }
+  });
+
+  it('delivers committed changes to two independent listeners within two seconds', async () => {
+    const messages = listeners.map((listener) =>
+      firstValueFrom(
+        listener.events().pipe(
+          filter(
+            (event) =>
+              event.type === 'poll-changed' &&
+              (event.data as { quackId?: string }).quackId === quackId,
+          ),
+          timeout(2000),
+        ),
+      ),
+    );
+    const saved = await polls.vote(quackId, users[0], options[0]);
+    const received = await Promise.all(messages);
+    expect(received.map((event) => event.data)).toEqual([
+      { quackId, revision: saved.revision },
+      { quackId, revision: saved.revision },
+    ]);
+    expect((await quacks.getQuack(quackId, users[1])).poll?.totalVotes).toBe(1);
+  });
+
+  it('does not deliver notifications for rolled back transactions', async () => {
+    const events: unknown[] = [];
+    const subscription = listeners[0].events().subscribe((event) => {
+      if (
+        event.type === 'poll-changed' &&
+        (event.data as { quackId?: string }).quackId === quackId
+      )
+        events.push(event.data);
+    });
+    try {
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SELECT pg_notify('quack_poll_changed', ${JSON.stringify({ quackId, revision: 99 })})`;
+          throw new Error('Rollback');
+        }),
+      ).rejects.toThrow('Rollback');
+      // A subsequent committed notification is a barrier on the same channel.
+      const received = firstValueFrom(
+        listeners[0].events().pipe(
+          filter(
+            (event) =>
+              event.type === 'poll-changed' &&
+              (event.data as { quackId?: string }).quackId === quackId,
+          ),
+          timeout(2000),
+        ),
+      );
+      await polls.vote(quackId, users[0], options[0]);
+      await received;
+      expect(events).toEqual([{ quackId, revision: 1 }]);
+    } finally {
+      subscription.unsubscribe();
     }
   });
 

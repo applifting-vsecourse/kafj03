@@ -1,12 +1,16 @@
 import { PollRepository } from '@/modules/quack/repositories/poll.repository';
+import { PollEventsService } from '@/modules/quack/services/poll-events.service';
 import { User } from '@/shared/auth/decorators/user.decorator';
 import { Identity } from '@/shared/auth/domain/identity';
 import { AuthenticatedUserGuard } from '@/shared/auth/guards/authenticated-user.guard';
 import {
   Body,
   Controller,
+  Header,
+  MessageEvent,
   Param,
   Put,
+  Sse,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -17,6 +21,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
 import { PollResponseDto } from './dto/poll.response.dto';
 import { VoteDto } from './dto/vote.dto';
 
@@ -32,7 +37,17 @@ import { VoteDto } from './dto/vote.dto';
   }),
 )
 export class PollsController {
-  constructor(private readonly polls: PollRepository) {}
+  constructor(
+    private readonly polls: PollRepository,
+    private readonly pollEvents: PollEventsService,
+  ) {}
+
+  @Sse('polls/events')
+  @Header('X-Accel-Buffering', 'no')
+  @ApiOperation({ summary: 'Subscribe to committed poll changes' })
+  events(): Observable<MessageEvent> {
+    return this.pollEvents.events();
+  }
 
   @Put(':id/poll/vote')
   @ApiOperation({ summary: 'Create or change your vote' })

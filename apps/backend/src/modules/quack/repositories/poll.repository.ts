@@ -55,6 +55,11 @@ export class PollRepository {
         where: { id: pollId },
         include: pollInclude(userId),
       });
+      if (previous?.optionId !== optionId) {
+        // PostgreSQL delivers NOTIFY only after this transaction commits.
+        const payload = JSON.stringify({ quackId, revision: poll.revision });
+        await tx.$executeRaw`SELECT pg_notify('quack_poll_changed', ${payload})`;
+      }
       return mapPollResult(poll);
     });
   }

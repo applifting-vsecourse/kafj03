@@ -14,6 +14,9 @@ vi.mock("@/lib/api-client", async () => {
   const { HTTPError } = await import("ky")
   return { api: { get }, HTTPError }
 })
+vi.mock("@/features/quack/api/pollSync", () => ({
+  pollSync: () => ({ subscribe: () => () => undefined, snapshot: () => "connected" }),
+}))
 const initial: PollData = {
   id: "p",
   question: "Lunch?",
