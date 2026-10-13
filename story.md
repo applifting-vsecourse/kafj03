@@ -1,37 +1,59 @@
-# Hledání příspěvků
+# Anketa v příspěvku
 
 ## User story
 
-Jako uživatel chci hledat příspěvky podle slov z jejich textu nebo jména autora, abych znovu našel příspěvek, který jsem dříve viděl.
+Jako uživatel chci do textového příspěvku přidat otázku s možnostmi odpovědi, aby si ostatní mohli vybrat jednu možnost a všichni viděli automaticky spočítané výsledky bez ručního počítání.
 
 ## Akceptační kritéria
 
-1. Vyhledávací pole je nad hlavním seznamem a filtruje všechny příspěvky dostupné uživateli, včetně dosud nenačtených.
-2. Po zadání neprázdného dotazu se výsledky automaticky aktualizují bez Enteru nebo tlačítka.
-3. Hledání ignoruje velikost písmen a diakritiku a podporuje části slov. Například „zlut“ najde text „Žlutý“ a „pet“ najde autora „Petr“.
-4. Výsledek musí obsahovat všechna zadaná slova. Slova mohou být rozdělená mezi text příspěvku a jméno autora. Například „Petr výlet“ najde příspěvek autora Petra s textem obsahujícím „výlet“.
-5. Výsledky se řadí: přesná fráze → všechna hledaná slova jako celá slova → shody obsahující části slov. Při stejné kategorii shody je novější příspěvek první bez ohledu na to, zda je shoda v textu nebo ve jméně autora.
-6. Mezery na začátku a konci se ignorují. Prázdný dotaz nebo samotné mezery obnoví běžný seznam.
-7. Během hledání se zobrazí indikátor načítání.
-8. Bez výsledků se zobrazí „Žádné příspěvky neodpovídají hledání“.
-9. Při chybě se zobrazí informace o selhání a možnost hledání zopakovat.
+1. **Vytvoření ankety**
+   - Anketu může přidat každý, kdo může vytvářet příspěvky. Jeden příspěvek může obsahovat nejvýše jednu anketu.
+   - Běžný text příspěvku zůstává povinný podle stávajících pravidel.
+   - Anketa obsahuje povinnou otázku do 280 znaků a 2–5 povinných možností, každou do 100 znaků.
+   - Mezery na začátku a konci otázky a možností se odstraní před validací. Prázdné možnosti a možnosti shodné bez ohledu na velikost písmen se odmítnou.
+   - Pořadí možností odpovídá pořadí zadanému autorem.
+   - Při neúspěšném zveřejnění zůstane vyplněný obsah zachovaný pro nový pokus.
 
-## Technický parametr
+2. **Zobrazení a přístup**
+   - Anketa se zobrazuje v seznamu příspěvků i v detailu.
+   - Výsledky jsou ihned dostupné všem, kteří mají přístup k příspěvku.
+   - Hlasovat mohou přihlášení uživatelé s přístupem k příspěvku, včetně autora.
+   - U každé možnosti se zobrazuje počet hlasů a procento; u ankety celkový počet hlasujících a vlastní vybraná možnost. Jména hlasujících se nezobrazují.
+   - Procenta se zaokrouhlují na celá čísla nezávisle pro každou možnost; jejich součet nemusí být přesně 100 %. Bez hlasů jsou všechny počty i procenta nulové.
 
-Hledání se spouští od prvního znaku s prodlevou 300 ms od posledního psaní.
+3. **Hlasování a změna volby**
+   - Jeden uživatel má v jedné anketě nejvýše jeden uložený hlas.
+   - Výběrem jiné možnosti změní svůj hlas: původní možnosti se jeden hlas odečte a nové přičte. Celkový počet hlasujících se nezmění.
+   - Vlastní hlas nelze zrušit.
+   - Opakované odeslání stejné volby nepřidá další hlas.
+   - Při hlasování stejného uživatele z více zařízení platí poslední serverem uložená volba.
+   - Souběžné hlasování nesmí způsobit ztrátu nebo zdvojení hlasů. Součet hlasů možností odpovídá celkovému počtu hlasujících.
 
-## Měření první verze
+4. **Okamžitá odezva a synchronizace**
+   - Po výběru se vlastní volba a výsledky ihned přepočítají v rozhraní.
+   - Během ukládání je další změna volby zablokovaná a stav ukládání je viditelný.
+   - Uložený hlas se projeví v ostatních otevřených anketách do 2 sekund bez obnovení stránky, pokud mají funkční spojení.
+   - Po synchronizaci zobrazují všichni stejné potvrzené výsledky.
 
-Během prvních 4 týdnů od nasazení sledujeme:
+5. **Chyby a výpadky**
+   - Při potvrzené chybě uložení se rozhraní vrátí k poslednímu potvrzenému stavu, zobrazí chybu u ankety a umožní nový pokus.
+   - Pokud do 10 sekund nepřijde potvrzení, rozhraní se vrátí k poslednímu potvrzenému stavu a zobrazí: „Uložení hlasu se nepodařilo ověřit.“
+   - Při známém odpojení je hlasování zakázané a výsledky označené jako neaktuální.
+   - Jakmile je server znovu dostupný, načte se skutečná uložená volba i aktuální výsledky a hlasování se zpřístupní.
 
-- Podíl aktivních uživatelů, kteří dokončí alespoň jedno hledání s neprázdným dotazem. Aktivní uživatel je ten, kdo v tomto období otevře hlavní seznam příspěvků.
-- Podíl hledajících uživatelů, kteří otevřou alespoň jeden výsledek hledání.
+6. **Životnost ankety**
+   - Po zveřejnění nelze otázku ani možnosti upravovat.
+   - Anketa nemá termín ukončení a nelze ji ručně ukončit.
+   - Smazáním příspěvku se smaže také anketa a její hlasy.
 
-Obsah dotazů se neukládá. Zatím pouze sbíráme data, bez stanovené hranice úspěchu.
+7. **Ověření používání**
+   - Za prvních 30 dní od zpřístupnění funkce vznikne jednorázový report pro tým obsahující:
+     - počet úspěšně zveřejněných anket v tomto období;
+     - podíl těchto anket, které během období získaly alespoň jeden uložený hlas;
+     - počet unikátních uživatelů, kteří během období úspěšně hlasovali alespoň v jedné anketě.
+   - Změny hlasu ani opakované hlasování nezvyšují počet unikátních hlasujících.
+   - Pozdější smazání příspěvku metriky nesnižuje. Při nulovém počtu anket je podíl 0 %.
+   - Měření neobsahuje text otázky, možnosti ani zvolenou odpověď.
+   - Nové analytické rozhraní ani předem stanovený práh úspěchu nejsou součástí první verze.
 
-## Mimo rozsah
-
-- Našeptávání.
-- Historie hledání.
-- Zvýrazňování shod.
-- Další filtry.
+V rozsahu této story nezůstává žádné otevřené produktové rozhodnutí.

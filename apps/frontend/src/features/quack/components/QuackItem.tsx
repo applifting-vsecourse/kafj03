@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/date"
 
 import type { Quack } from "@/features/quack/api/quackSchemas"
+import { Poll } from "@/features/quack/components/Poll"
 import { UsersName } from "@/features/quack/components/UsersName"
 import { UsersUserName } from "@/features/quack/components/UsersUserName"
 
@@ -41,6 +42,12 @@ export function QuackItem({ quack, onOpen }: QuackItemProps) {
           </span>
         ) : null}
         <p className="text-sm break-words whitespace-pre-line">{quack.text}</p>
+        {quack.poll ? (
+          <Poll
+            quackId={quack.id}
+            poll={quack.poll}
+          />
+        ) : null}
         {onOpen ? (
           <Button
             variant="ghost"

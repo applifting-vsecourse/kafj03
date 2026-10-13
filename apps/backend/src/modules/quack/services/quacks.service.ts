@@ -1,3 +1,4 @@
+import { CreatePoll } from '@/modules/quack/domain/poll';
 import { Quack, QuackMood } from '@/modules/quack/domain/quack';
 import { searchQuacks } from '@/modules/quack/domain/search-quacks';
 import { QuackRepository } from '@/modules/quack/repositories/quack.repository';
@@ -8,8 +9,16 @@ import { Injectable } from '@nestjs/common';
 export class QuacksService {
   constructor(private readonly quackRepository: QuackRepository) {}
 
-  async getQuacks(query = ''): Promise<Quack[]> {
-    return searchQuacks(await this.quackRepository.getQuacks(), query);
+  async getQuacks(query = '', userId?: string): Promise<Quack[]> {
+    return searchQuacks(await this.quackRepository.getQuacks(userId), query);
+  }
+
+  async getQuack(id: string, user: Identity): Promise<Quack> {
+    return this.quackRepository.getQuack(id, user.id);
+  }
+
+  async deleteQuack(id: string, user: Identity): Promise<void> {
+    await this.quackRepository.deleteQuack(id, user.id);
   }
 
   async recordUsage(
@@ -21,11 +30,12 @@ export class QuacksService {
 
   async createQuack(
     user: Identity,
-    quackData: { text: string; mood?: QuackMood | null },
+    quackData: { text: string; mood?: QuackMood | null; poll?: CreatePoll },
   ): Promise<Quack> {
     return this.quackRepository.createQuack({
       text: quackData.text,
       mood: quackData.mood,
+      ...(quackData.poll ? { poll: quackData.poll } : {}),
       // the author is taken from the session, never from the request body
       userId: user.id,
     });
