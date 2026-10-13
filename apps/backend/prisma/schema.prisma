@@ -39,6 +39,7 @@ model Quack {
   userId    String
   createdAt DateTime   @default(now())
   updatedAt DateTime   @default(now()) @updatedAt
+  poll      Poll?
 
   @@index([userId])
   @@map("quack")
@@ -104,10 +105,11 @@ model User {
   accounts      Account[]
   quacks        Quack[]
   searchUsage   SearchUsage[]
+  pollVotes     PollVote[]
   role          UserRole      @default(user)
 
-  bio             String? @db.VarChar(160)
-  defaultMood     QuackMood?
+  bio         String?    @db.VarChar(160)
+  defaultMood QuackMood?
 
   username        String? @db.VarChar(50)
   displayUsername String? @db.VarChar(50)
@@ -126,4 +128,63 @@ model SearchUsage {
 
   @@id([userId, day])
   @@map("search_usage")
+}
+
+model Poll {
+  id        String       @id @default(cuid())
+  quackId   String       @unique
+  quack     Quack        @relation(fields: [quackId], references: [id], onDelete: Cascade)
+  question  String       @db.VarChar(280)
+  createdAt DateTime     @default(now())
+  revision  Int          @default(0)
+  options   PollOption[]
+
+  @@map("poll")
+}
+
+model PollOption {
+  id       String     @id @default(cuid())
+  pollId   String
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text     String     @db.VarChar(100)
+  position Int
+  votes    PollVote[]
+
+  // Composite key lets the vote FK enforce membership in the same poll.
+  @@unique([pollId, id])
+  @@unique([pollId, position])
+  @@map("poll_option")
+}
+
+model PollVote {
+  pollId    String
+  userId    String
+  optionId  String
+  option    PollOption @relation(fields: [pollId, optionId], references: [pollId, id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime   @default(now()) @updatedAt
+
+  @@id([pollId, userId])
+  @@index([pollId, optionId])
+  @@index([userId])
+  @@map("poll_vote")
+}
+
+// Historical measurement records deliberately have no cascading relations.
+// Deleting a post must not reduce the launch report's counts.
+model PollUsage {
+  pollId       String    @id
+  createdAt    DateTime  @default(now())
+  firstVotedAt DateTime?
+
+  @@index([createdAt])
+  @@map("poll_usage")
+}
+
+model PollVoterUsage {
+  userId       String   @id
+  firstVotedAt DateTime @default(now())
+
+  @@index([firstVotedAt])
+  @@map("poll_voter_usage")
 }
