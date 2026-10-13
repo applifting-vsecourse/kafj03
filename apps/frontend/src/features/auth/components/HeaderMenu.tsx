@@ -62,6 +62,9 @@ export function HeaderMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/settings">Settings</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => signOut.mutate()}
           disabled={signOut.isPending}

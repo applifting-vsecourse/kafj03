@@ -9,6 +9,8 @@ export type SessionUser = {
   email: string
   name: string
   username: string
+  bio?: string | null
+  defaultMood?: "happy" | "sad" | "angry" | "silly" | null
   role?: string
 }
 
@@ -26,6 +28,8 @@ export const authSessionQueryOptions = () =>
 
       const user = data.user as typeof data.user & {
         username?: string | null
+        bio?: string | null
+        defaultMood?: SessionUser["defaultMood"]
         role?: string | null
       }
 
@@ -35,6 +39,8 @@ export const authSessionQueryOptions = () =>
           email: user.email,
           name: user.name,
           username: user.username ?? "",
+          bio: user.bio,
+          defaultMood: user.defaultMood,
           role: user.role ?? undefined,
         },
       }
