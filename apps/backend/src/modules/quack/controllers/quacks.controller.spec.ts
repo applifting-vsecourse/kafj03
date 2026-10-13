@@ -34,7 +34,7 @@ describe('QuacksController', () => {
         text: 'hello',
         mood,
       });
-      expect(await controller.list()).toEqual([
+      expect(await controller.list(user)).toEqual([
         expect.objectContaining({ mood }),
       ]);
     },

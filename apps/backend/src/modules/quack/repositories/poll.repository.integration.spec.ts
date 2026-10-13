@@ -1,7 +1,11 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PollRepository } from './poll.repository';
 import { QuackRepository } from './quack.repository';
 
@@ -189,9 +193,74 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
     expect(await prisma.pollUsage.count()).toBe(usageBefore);
   });
 
+  it('returns viewer-specific choices and shared totals in feed and detail', async () => {
+    await polls.vote(quackId, users[0], options[0]);
+    await polls.vote(quackId, users[1], options[1]);
+    const mine = await quacks.getQuack(quackId, users[0]);
+    const theirs = await quacks.getQuack(quackId, users[1]);
+    const observer = await quacks.getQuack(quackId, users[2]);
+    expect(mine.poll).toMatchObject({
+      totalVotes: 2,
+      revision: 2,
+      myOptionId: options[0],
+    });
+    expect(theirs.poll?.myOptionId).toBe(options[1]);
+    expect(observer.poll?.myOptionId).toBeNull();
+    expect(mine.poll?.options).toEqual(theirs.poll?.options);
+    expect(
+      mine.poll?.options.map((option) => [option.votes, option.percentage]),
+    ).toEqual([
+      [1, 50],
+      [1, 50],
+    ]);
+    const feed = await quacks.getQuacks(users[0]);
+    expect(feed.find((quack) => quack.id === quackId)?.poll).toEqual(mine.poll);
+    expect(Object.keys(mine.poll?.options[0] ?? {}).sort()).toEqual([
+      'id',
+      'percentage',
+      'position',
+      'text',
+      'votes',
+    ]);
+  });
+
+  it('returns zero results on publication and null for a plain post', async () => {
+    const created = await quacks.getQuack(quackId, users[0]);
+    expect(created.poll).toMatchObject({
+      totalVotes: 0,
+      revision: 0,
+      myOptionId: null,
+    });
+    expect(
+      created.poll?.options.every(
+        (option) => option.votes === 0 && option.percentage === 0,
+      ),
+    ).toBe(true);
+    const plain = await quacks.createQuack({
+      text: 'Plain post',
+      userId: users[0],
+    });
+    quackIds.push(plain.id);
+    expect(plain.poll).toBeNull();
+    expect((await quacks.getQuack(plain.id, users[1])).poll).toBeNull();
+  });
+
+  it('rejects deleting another author’s post and reports missing posts', async () => {
+    await expect(quacks.deleteQuack(quackId, users[1])).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect((await quacks.getQuack(quackId, users[1])).id).toBe(quackId);
+    await expect(quacks.getQuack('missing', users[0])).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      quacks.deleteQuack('missing', users[0]),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('cascades deletion through votes while preserving report records', async () => {
     await polls.vote(quackId, users[0], options[0]);
-    await prisma.quack.delete({ where: { id: quackId } });
+    await quacks.deleteQuack(quackId, users[0]);
     expect(await prisma.poll.count({ where: { id: pollId } })).toBe(0);
     expect(await prisma.pollOption.count({ where: { pollId } })).toBe(0);
     expect(await prisma.pollVote.count({ where: { pollId } })).toBe(0);

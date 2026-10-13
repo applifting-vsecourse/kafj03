@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mapPollResult, pollInclude } from './poll-result';
 
 @Injectable()
 export class PollRepository {
@@ -52,33 +53,9 @@ export class PollRepository {
       }
       const poll = await tx.poll.findUniqueOrThrow({
         where: { id: pollId },
-        include: {
-          options: {
-            orderBy: { position: 'asc' },
-            include: { _count: { select: { votes: true } } },
-          },
-        },
+        include: pollInclude(userId),
       });
-      const totalVotes = poll.options.reduce(
-        (total, item) => total + item._count.votes,
-        0,
-      );
-      return {
-        id: poll.id,
-        question: poll.question,
-        revision: poll.revision,
-        totalVotes,
-        myOptionId: optionId,
-        options: poll.options.map((item) => ({
-          id: item.id,
-          text: item.text,
-          position: item.position,
-          votes: item._count.votes,
-          percentage: totalVotes
-            ? Math.round((item._count.votes * 100) / totalVotes)
-            : 0,
-        })),
-      };
+      return mapPollResult(poll);
     });
   }
 }

@@ -1,5 +1,6 @@
 import { Quack, QUACK_MOODS, QuackMood } from '@/modules/quack/domain/quack';
 import { ApiProperty } from '@nestjs/swagger';
+import { PollResponseDto } from './poll.response.dto';
 
 class QuackUserDto {
   @ApiProperty()
@@ -31,6 +32,9 @@ export class QuackResponseDto {
   @ApiProperty({ type: QuackUserDto })
   user!: QuackUserDto;
 
+  @ApiProperty({ type: PollResponseDto, nullable: true })
+  poll!: PollResponseDto | null;
+
   static fromDomain(quack: Quack): QuackResponseDto {
     if (!quack.user) {
       throw new Error(
@@ -39,6 +43,7 @@ export class QuackResponseDto {
     }
     return {
       id: quack.id,
+      poll: quack.poll ?? null,
       text: quack.text,
       mood: quack.mood ?? null,
       userId: quack.userId,

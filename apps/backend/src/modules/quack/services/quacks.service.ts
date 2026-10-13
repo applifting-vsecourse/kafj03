@@ -9,8 +9,16 @@ import { Injectable } from '@nestjs/common';
 export class QuacksService {
   constructor(private readonly quackRepository: QuackRepository) {}
 
-  async getQuacks(query = ''): Promise<Quack[]> {
-    return searchQuacks(await this.quackRepository.getQuacks(), query);
+  async getQuacks(query = '', userId?: string): Promise<Quack[]> {
+    return searchQuacks(await this.quackRepository.getQuacks(userId), query);
+  }
+
+  async getQuack(id: string, user: Identity): Promise<Quack> {
+    return this.quackRepository.getQuack(id, user.id);
+  }
+
+  async deleteQuack(id: string, user: Identity): Promise<void> {
+    await this.quackRepository.deleteQuack(id, user.id);
   }
 
   async recordUsage(
