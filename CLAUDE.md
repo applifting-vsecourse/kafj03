@@ -35,3 +35,7 @@ Don't reach for the browser to check your own work. Tests and type-checks are th
 ### UI language
 
 All user-facing application text must be in English, including labels, placeholders, loading states, empty states, errors, and actions. User stories and conversation may use another language.
+
+### Viewer-specific cache
+
+When cached data includes viewer-specific state (such as the current user's vote), clear the affected queries and mutations on account changes. Ignore late responses from the previous session so they cannot repopulate the cache. Test switching accounts while a request is pending.
