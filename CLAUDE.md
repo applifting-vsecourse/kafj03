@@ -39,3 +39,7 @@ All user-facing application text must be in English, including labels, placehold
 ### Viewer-specific cache
 
 When cached data includes viewer-specific state (such as the current user's vote), clear the affected queries and mutations on account changes. Ignore late responses from the previous session so they cannot repopulate the cache. Test switching accounts while a request is pending.
+
+### Server-side authorization
+
+Every endpoint that changes or deletes data checks in the service that the user from `@User()` may do it, and throws `ForbiddenException` otherwise. Hiding a button in the UI is not a check. The current user always comes from the session, never from the body or the URL.
