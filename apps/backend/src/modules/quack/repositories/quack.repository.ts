@@ -81,7 +81,15 @@ export class QuackRepository {
     );
   }
 
-  async deleteQuack(id: string, userId: string): Promise<void> {
+  async getUserRole(userId: string): Promise<string | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    return user?.role ?? null;
+  }
+
+  async deleteQuack(id: string, userId?: string): Promise<void> {
     // Ownership is part of the DELETE, so it cannot change between checking and deleting.
     const deleted = await this.prisma.quack.deleteMany({
       where: { id, userId },
