@@ -43,3 +43,7 @@ When cached data includes viewer-specific state (such as the current user's vote
 ### Server-side authorization
 
 Every endpoint that changes or deletes data checks in the service that the user from `@User()` may do it, and throws `ForbiddenException` otherwise. Hiding a button in the UI is not a check. The current user always comes from the session, never from the body or the URL.
+
+### Authorization tests must catch a missing check
+
+For permission changes, add an E2E test that calls the API directly as an unauthorized user and asserts 403; signed-out requests must return 401. Verify that disabling the server authorization check makes the test fail, then restore the check and rerun it. Use isolated sessions for different users and delete only test-created data.
