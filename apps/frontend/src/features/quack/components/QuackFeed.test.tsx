@@ -6,7 +6,8 @@ import { QuackFeed } from "./QuackFeed"
 
 const get = vi.hoisted(() => vi.fn())
 const usage = vi.hoisted(() => vi.fn())
-vi.mock("@/lib/api-client", () => ({ api: { get } }))
+const remove = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/api-client", () => ({ api: { get, delete: remove } }))
 vi.mock("@/features/quack/api/searchUsage", () => ({ recordSearchUsage: usage }))
 const post = {
   id: "q1",
@@ -20,7 +21,7 @@ const mount = () =>
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <QuackFeed />
+      <QuackFeed currentUserId="u1" />
     </QueryClientProvider>,
   )
 
@@ -30,6 +31,44 @@ afterEach(() => {
 })
 
 describe("QuackFeed", () => {
+  it("filters own posts, confirms deletion, and removes the post from both views", async () => {
+    const other = { ...post, id: "q2", userId: "u2", text: "Other post" }
+    let posts = [post, other]
+    get.mockImplementation(() => ({ json: () => Promise.resolve(posts) }))
+    remove.mockImplementation(() => {
+      posts = [other]
+      return Promise.resolve()
+    })
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false)
+    mount()
+    await screen.findByText("Other post")
+    expect(screen.getAllByRole("button", { name: "Smazat" })).toHaveLength(1)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Moje" }), { button: 0, ctrlKey: false })
+    expect(screen.queryByText("Other post")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Smazat" }))
+    expect(remove).not.toHaveBeenCalled()
+    confirm.mockReturnValue(true)
+    fireEvent.click(screen.getByRole("button", { name: "Smazat" }))
+    await screen.findByText("Zatím nemáte žádné příspěvky.")
+    expect(screen.getByRole("button", { name: "Napsat první příspěvek" })).toBeInTheDocument()
+    expect(remove).toHaveBeenCalledWith("quacks/q1")
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Vše" }), { button: 0, ctrlKey: false })
+    expect(screen.getByText("Other post")).toBeInTheDocument()
+    expect(screen.queryByText(post.text)).not.toBeInTheDocument()
+    confirm.mockRestore()
+  })
+
+  it("keeps the post and shows an error when deletion fails", async () => {
+    get.mockImplementation(() => ({ json: () => Promise.resolve([post]) }))
+    remove.mockRejectedValueOnce(new Error("Offline"))
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true)
+    mount()
+    fireEvent.click(await screen.findByRole("button", { name: "Smazat" }))
+    await screen.findByRole("alert")
+    expect(screen.getByText(post.text)).toBeInTheDocument()
+    confirm.mockRestore()
+  })
+
   it("debounces queries, records completed search without its text, opens results, and restores the feed", async () => {
     get.mockImplementation(() => ({ json: () => Promise.resolve([post]) }))
     mount()

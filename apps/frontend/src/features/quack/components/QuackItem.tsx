@@ -7,9 +7,14 @@ import { Poll } from "@/features/quack/components/Poll"
 import { UsersName } from "@/features/quack/components/UsersName"
 import { UsersUserName } from "@/features/quack/components/UsersUserName"
 
-type QuackItemProps = { quack: Quack; onOpen?: () => void }
+type QuackItemProps = {
+  quack: Quack
+  onOpen?: () => void
+  onDelete?: () => void
+  isDeleting?: boolean
+}
 
-export function QuackItem({ quack, onOpen }: QuackItemProps) {
+export function QuackItem({ quack, onOpen, onDelete, isDeleting }: QuackItemProps) {
   const { name, username } = quack.user
 
   const initials = name
@@ -47,6 +52,17 @@ export function QuackItem({ quack, onOpen }: QuackItemProps) {
             quackId={quack.id}
             poll={quack.poll}
           />
+        ) : null}
+        {onDelete ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-fit text-destructive"
+            disabled={isDeleting}
+            onClick={onDelete}
+          >
+            {isDeleting ? "Mažu…" : "Smazat"}
+          </Button>
         ) : null}
         {onOpen ? (
           <Button

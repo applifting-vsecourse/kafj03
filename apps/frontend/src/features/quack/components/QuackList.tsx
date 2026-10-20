@@ -12,6 +12,9 @@ type QuackListProps = {
   error?: Error
   onReload?: () => void
   emptyMessage?: string
+  currentUserId?: string
+  onDelete?: (id: string) => void
+  deletingId?: string
   onOpen?: (id: string) => void
 }
 
@@ -22,6 +25,9 @@ export function QuackList({
   onReload,
   emptyMessage,
   onOpen,
+  currentUserId,
+  onDelete,
+  deletingId,
 }: QuackListProps) {
   return (
     <div className="flex flex-col">
@@ -67,6 +73,10 @@ export function QuackList({
         <QuackItem
           key={quack.id}
           quack={quack}
+          onDelete={
+            onDelete && currentUserId === quack.userId ? () => onDelete(quack.id) : undefined
+          }
+          isDeleting={deletingId === quack.id}
           onOpen={onOpen ? () => onOpen(quack.id) : undefined}
         />
       ))}

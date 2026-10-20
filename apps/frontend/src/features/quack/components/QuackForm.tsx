@@ -106,6 +106,7 @@ export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
                     placeholder="Quack something..."
                     disabled={addQuack.isPending}
                     {...field}
+                    data-new-quack-text
                   />
                 </FormControl>
                 <FormMessage />
