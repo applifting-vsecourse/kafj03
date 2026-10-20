@@ -23,7 +23,7 @@ function QuacksPage() {
           defaultMood={user?.defaultMood ?? ""}
         />
 
-        <QuackFeed />
+        <QuackFeed currentUserId={user?.id} />
       </section>
     </>
   )
