@@ -26,10 +26,7 @@ export class QuacksService {
         'You do not have permission to delete this post',
       );
     }
-    await this.quackRepository.deleteQuack(
-      id,
-      role === 'admin' ? undefined : user.id,
-    );
+    await this.quackRepository.deleteQuack(id);
   }
 
   async recordUsage(

@@ -91,10 +91,7 @@ describe('QuacksService deletion authorization', () => {
     );
     if (allowed) {
       await expect(result).resolves.toBeUndefined();
-      expect(repository.deleteQuack).toHaveBeenCalledWith(
-        'q1',
-        persistedRole === 'admin' ? undefined : id,
-      );
+      expect(repository.deleteQuack).toHaveBeenCalledWith('q1');
     } else {
       await expect(result).rejects.toBeInstanceOf(ForbiddenException);
       expect(repository.deleteQuack).not.toHaveBeenCalled();

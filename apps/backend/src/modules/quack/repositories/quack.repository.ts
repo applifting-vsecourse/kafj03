@@ -5,11 +5,7 @@ import {
 } from '@/generated/prisma/client';
 import { CreatePoll } from '@/modules/quack/domain/poll';
 import { Quack, QuackMood } from '@/modules/quack/domain/quack';
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { LoadedPoll, mapPollResult, pollInclude } from './poll-result';
 
 const mapPrismaQuackToDomain = (
@@ -89,18 +85,9 @@ export class QuackRepository {
     return user?.role ?? null;
   }
 
-  async deleteQuack(id: string, userId?: string): Promise<void> {
-    // Ownership is part of the DELETE, so it cannot change between checking and deleting.
-    const deleted = await this.prisma.quack.deleteMany({
-      where: { id, userId },
-    });
-    if (deleted.count) return;
-    const exists = await this.prisma.quack.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!exists) throw new NotFoundException('Post not found');
-    throw new ForbiddenException('You can only delete your own posts');
+  async deleteQuack(id: string): Promise<void> {
+    const deleted = await this.prisma.quack.deleteMany({ where: { id } });
+    if (!deleted.count) throw new NotFoundException('Post not found');
   }
 
   async createQuack(createQuackData: {
