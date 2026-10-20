@@ -1,28 +1,27 @@
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { mockDeep } from 'jest-mock-extended';
 import { QuackRepository } from './quack.repository';
 
-describe('QuackRepository deletion ownership', () => {
-  it('deletes only with the authenticated author in the database predicate', async () => {
+describe('QuackRepository deletion', () => {
+  it('deletes an authorized admin target without an author restriction', async () => {
     const prisma = mockDeep<PrismaService>();
     prisma.quack.deleteMany.mockResolvedValue({ count: 1 });
-    await new QuackRepository(prisma).deleteQuack('q1', 'author');
+    await new QuackRepository(prisma).deleteQuack('q1');
     expect(prisma.quack.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'q1', userId: 'author' },
+      where: { id: 'q1' },
     });
-    expect(prisma.quack.findUnique).not.toHaveBeenCalled();
   });
 
-  it('rejects deleting an existing post belonging to someone else', async () => {
+  it('loads the current persisted role', async () => {
     const prisma = mockDeep<PrismaService>();
-    prisma.quack.deleteMany.mockResolvedValue({ count: 0 });
-    prisma.quack.findUnique.mockResolvedValue({ id: 'q1' } as never);
-    await expect(
-      new QuackRepository(prisma).deleteQuack('q1', 'other'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(prisma.quack.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'q1', userId: 'other' },
+    prisma.user.findUnique.mockResolvedValue({ role: 'user' } as never);
+    await expect(new QuackRepository(prisma).getUserRole('u1')).resolves.toBe(
+      'user',
+    );
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      select: { role: true },
     });
   });
 
@@ -31,7 +30,7 @@ describe('QuackRepository deletion ownership', () => {
     prisma.quack.deleteMany.mockResolvedValue({ count: 0 });
     prisma.quack.findUnique.mockResolvedValue(null);
     await expect(
-      new QuackRepository(prisma).deleteQuack('missing', 'author'),
+      new QuackRepository(prisma).deleteQuack('missing'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -1,59 +1,45 @@
-# Anketa v příspěvku
+# Moderátorské mazání quacků
 
 ## User story
 
-Jako uživatel chci do textového příspěvku přidat otázku s možnostmi odpovědi, aby si ostatní mohli vybrat jednu možnost a všichni viděli automaticky spočítané výsledky bez ručního počítání.
+Jako moderátor chci smazat libovolný quack, abych mohl odstranit nevhodný obsah i bez souhlasu jeho autora.
 
 ## Akceptační kritéria
 
-1. **Vytvoření ankety**
-   - Anketu může přidat každý, kdo může vytvářet příspěvky. Jeden příspěvek může obsahovat nejvýše jednu anketu.
-   - Běžný text příspěvku zůstává povinný podle stávajících pravidel.
-   - Anketa obsahuje povinnou otázku do 280 znaků a 2–5 povinných možností, každou do 100 znaků.
-   - Mezery na začátku a konci otázky a možností se odstraní před validací. Prázdné možnosti a možnosti shodné bez ohledu na velikost písmen se odmítnou.
-   - Pořadí možností odpovídá pořadí zadanému autorem.
-   - Při neúspěšném zveřejnění zůstane vyplněný obsah zachovaný pro nový pokus.
+1. **Role a oprávnění**
+   - Moderátorem je uživatel se stávající rolí `admin`; nová role nevzniká.
+   - Admin smí smazat libovolný quack bez ohledu na jeho autora, včetně vlastních quacků a quacků jiných adminů.
+   - Běžný uživatel nadále smí mazat pouze vlastní quacky.
+   - Roli admina přiděluje a odebírá správce ruční změnou v databázi. Rozhraní ani nové API pro správu rolí nejsou součástí story.
+   - Server při každém požadavku na smazání ověří aktuální oprávnění přihlášeného uživatele. Přímé volání API nesmí umožnit obejít kontrolu.
+   - Odebrání role admina se projeví při dalším pokusu o smazání cizího quacku i v již přihlášené relaci, bez nutnosti odhlášení. Server takový pokus odmítne a quack nesmaže.
 
-2. **Zobrazení a přístup**
-   - Anketa se zobrazuje v seznamu příspěvků i v detailu.
-   - Výsledky jsou ihned dostupné všem, kteří mají přístup k příspěvku.
-   - Hlasovat mohou přihlášení uživatelé s přístupem k příspěvku, včetně autora.
-   - U každé možnosti se zobrazuje počet hlasů a procento; u ankety celkový počet hlasujících a vlastní vybraná možnost. Jména hlasujících se nezobrazují.
-   - Procenta se zaokrouhlují na celá čísla nezávisle pro každou možnost; jejich součet nemusí být přesně 100 %. Bez hlasů jsou všechny počty i procenta nulové.
+2. **Dostupnost akce a potvrzení**
+   - Admin má akci smazání dostupnou přímo v běžném seznamu i detailu každého quacku. Samostatná moderátorská stránka nevzniká.
+   - Před smazáním se zobrazí potvrzovací dialog, který jasně sdělí, že smazání je trvalé a zahrnuje případnou anketu a její hlasy.
+   - Zrušení dialogu quack zachová; smazání se odešle až po výslovném potvrzení.
+   - Během mazání je další odeslání stejné akce zablokované a stav probíhajícího mazání je viditelný.
+   - Nové a upravované texty rozhraní jsou v angličtině podle pravidel projektu.
 
-3. **Hlasování a změna volby**
-   - Jeden uživatel má v jedné anketě nejvýše jeden uložený hlas.
-   - Výběrem jiné možnosti změní svůj hlas: původní možnosti se jeden hlas odečte a nové přičte. Celkový počet hlasujících se nezmění.
-   - Vlastní hlas nelze zrušit.
-   - Opakované odeslání stejné volby nepřidá další hlas.
-   - Při hlasování stejného uživatele z více zařízení platí poslední serverem uložená volba.
-   - Souběžné hlasování nesmí způsobit ztrátu nebo zdvojení hlasů. Součet hlasů možností odpovídá celkovému počtu hlasujících.
+3. **Výsledek smazání**
+   - Smazání trvale odstraní celý quack včetně případné ankety, jejích možností a hlasů. Obnova není dostupná.
+   - Existující historické metriky používání anket zůstávají zachované podle dosavadních pravidel.
+   - Po úspěšném smazání ze seznamu quack zmizí z rozhraní admina.
+   - Po úspěšném smazání v detailu se admin vrátí do seznamu se zachováním filtru a hledání.
+   - Smazaný quack se při dalším načtení dat nezobrazuje v seznamu ani není dostupný v detailu.
+   - Ostatním uživatelům zmizí při dalším načtení dat. Okamžitá synchronizace mazání do ostatních otevřených stránek není součástí story.
 
-4. **Okamžitá odezva a synchronizace**
-   - Po výběru se vlastní volba a výsledky ihned přepočítají v rozhraní.
-   - Během ukládání je další změna volby zablokovaná a stav ukládání je viditelný.
-   - Uložený hlas se projeví v ostatních otevřených anketách do 2 sekund bez obnovení stránky, pokud mají funkční spojení.
-   - Po synchronizaci zobrazují všichni stejné potvrzené výsledky.
+4. **Chyby a souběžné smazání**
+   - Při chybě mazání zůstane quack zobrazený, rozhraní zobrazí chybovou zprávu a umožní nový pokus.
+   - Pokud bylo mazání odmítnuto kvůli odebrané roli, zpráva vysvětlí chybějící oprávnění. Opakování požadavku nesmí obejít aktuální oprávnění.
+   - Pokud quack již smazal někdo jiný, rozhraní považuje požadovaný výsledek za dosažený: odstraní quack ze seznamu, případně opustí jeho detail stejně jako při úspěšném smazání.
 
-5. **Chyby a výpadky**
-   - Při potvrzené chybě uložení se rozhraní vrátí k poslednímu potvrzenému stavu, zobrazí chybu u ankety a umožní nový pokus.
-   - Pokud do 10 sekund nepřijde potvrzení, rozhraní se vrátí k poslednímu potvrzenému stavu a zobrazí: „Uložení hlasu se nepodařilo ověřit.“
-   - Při známém odpojení je hlasování zakázané a výsledky označené jako neaktuální.
-   - Jakmile je server znovu dostupný, načte se skutečná uložená volba i aktuální výsledky a hlasování se zpřístupní.
+## Mimo rozsah
 
-6. **Životnost ankety**
-   - Po zveřejnění nelze otázku ani možnosti upravovat.
-   - Anketa nemá termín ukončení a nelze ji ručně ukončit.
-   - Smazáním příspěvku se smaže také anketa a její hlasy.
-
-7. **Ověření používání**
-   - Za prvních 30 dní od zpřístupnění funkce vznikne jednorázový report pro tým obsahující:
-     - počet úspěšně zveřejněných anket v tomto období;
-     - podíl těchto anket, které během období získaly alespoň jeden uložený hlas;
-     - počet unikátních uživatelů, kteří během období úspěšně hlasovali alespoň v jedné anketě.
-   - Změny hlasu ani opakované hlasování nezvyšují počet unikátních hlasujících.
-   - Pozdější smazání příspěvku metriky nesnižuje. Při nulovém počtu anket je podíl 0 %.
-   - Měření neobsahuje text otázky, možnosti ani zvolenou odpověď.
-   - Nové analytické rozhraní ani předem stanovený práh úspěchu nejsou součástí první verze.
+- Úpravy cizích quacků, blokování účtů a další moderátorské pravomoci.
+- Zadávání nebo ukládání důvodu smazání.
+- Nová evidence toho, kdo a kdy quack smazal.
+- Upozornění autora na smazání.
+- Obnova smazaného obsahu, samostatná moderátorská stránka a správa rolí v aplikaci.
 
 V rozsahu této story nezůstává žádné otevřené produktové rozhodnutí.

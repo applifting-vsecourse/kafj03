@@ -16,12 +16,15 @@ const post = {
   createdAt: "2026-01-01T00:00:00Z",
   user: { id: "u1", name: "Petr", username: "petr" },
 }
-const mount = () =>
+const mount = (currentUserRole = "user") =>
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <QuackFeed currentUserId="u1" />
+      <QuackFeed
+        currentUserId="u1"
+        currentUserRole={currentUserRole}
+      />
     </QueryClientProvider>,
   )
 
@@ -31,6 +34,22 @@ afterEach(() => {
 })
 
 describe("QuackFeed", () => {
+  it("allows an admin to confirm and delete another user's post", async () => {
+    let posts = [{ ...post, userId: "u2" }]
+    get.mockImplementation(() => ({ json: () => Promise.resolve(posts) }))
+    remove.mockImplementation(() => {
+      posts = []
+      return Promise.resolve()
+    })
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true)
+    mount("admin")
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
+    await screen.findByText("No quacks yet. Post the first one.")
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("cannot be undone"))
+    expect(remove).toHaveBeenCalledWith("quacks/q1")
+    confirm.mockRestore()
+  })
+
   it("filters own posts, confirms deletion, and removes the post from both views", async () => {
     const other = { ...post, id: "q2", userId: "u2", text: "Other post" }
     let posts = [post, other]
@@ -42,13 +61,13 @@ describe("QuackFeed", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false)
     mount()
     await screen.findByText("Other post")
-    expect(screen.getAllByRole("button", { name: "Smazat" })).toHaveLength(1)
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(1)
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Moje" }), { button: 0, ctrlKey: false })
     expect(screen.queryByText("Other post")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Smazat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     expect(remove).not.toHaveBeenCalled()
     confirm.mockReturnValue(true)
-    fireEvent.click(screen.getByRole("button", { name: "Smazat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
     await screen.findByText("Zatím nemáte žádné příspěvky.")
     expect(screen.getByRole("button", { name: "Napsat první příspěvek" })).toBeInTheDocument()
     expect(remove).toHaveBeenCalledWith("quacks/q1")
@@ -63,7 +82,7 @@ describe("QuackFeed", () => {
     remove.mockRejectedValueOnce(new Error("Offline"))
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true)
     mount()
-    fireEvent.click(await screen.findByRole("button", { name: "Smazat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
     await screen.findByRole("alert")
     expect(screen.getByText(post.text)).toBeInTheDocument()
     confirm.mockRestore()

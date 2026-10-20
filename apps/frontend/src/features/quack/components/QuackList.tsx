@@ -12,6 +12,7 @@ type QuackListProps = {
   error?: Error
   onReload?: () => void
   emptyMessage?: string
+  currentUserRole?: string
   currentUserId?: string
   onDelete?: (id: string) => void
   deletingId?: string
@@ -26,6 +27,7 @@ export function QuackList({
   emptyMessage,
   onOpen,
   currentUserId,
+  currentUserRole,
   onDelete,
   deletingId,
 }: QuackListProps) {
@@ -74,7 +76,9 @@ export function QuackList({
           key={quack.id}
           quack={quack}
           onDelete={
-            onDelete && currentUserId === quack.userId ? () => onDelete(quack.id) : undefined
+            onDelete && (currentUserId === quack.userId || currentUserRole === "admin")
+              ? () => onDelete(quack.id)
+              : undefined
           }
           isDeleting={deletingId === quack.id}
           onOpen={onOpen ? () => onOpen(quack.id) : undefined}

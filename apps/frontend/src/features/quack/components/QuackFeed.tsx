@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { HTTPError } from "ky"
 import { Tabs } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,13 @@ import { quacksQueryOptions } from "@/features/quack/api/quacksQueryOptions"
 import { recordSearchUsage } from "@/features/quack/api/searchUsage"
 import { QuackList } from "@/features/quack/components/QuackList"
 
-export function QuackFeed({ currentUserId }: { currentUserId?: string }) {
+export function QuackFeed({
+  currentUserId,
+  currentUserRole,
+}: {
+  currentUserId?: string
+  currentUserRole?: string
+}) {
   const client = useQueryClient()
   const [scope, setScope] = useState<"all" | "mine">("all")
   const deletion = useMutation({
@@ -27,10 +34,18 @@ export function QuackFeed({ currentUserId }: { currentUserId?: string }) {
     },
   })
   const handleDelete = (id: string) => {
-    if (window.confirm("Opravdu chcete smazat tento příspěvek?")) deletion.mutate(id)
+    if (
+      !deletion.isPending &&
+      window.confirm(
+        "Permanently delete this post, including its poll and votes? This cannot be undone.",
+      )
+    ) {
+      deletion.mutate(id)
+    }
   }
   const deleteProps = {
     currentUserId,
+    currentUserRole,
     onDelete: handleDelete,
     deletingId: deletion.isPending ? deletion.variables : undefined,
   }
@@ -107,7 +122,9 @@ export function QuackFeed({ currentUserId }: { currentUserId?: string }) {
             role="alert"
             className="mb-4 text-destructive"
           >
-            Příspěvek se nepodařilo smazat. Zkuste to znovu.
+            {deletion.error instanceof HTTPError && deletion.error.response.status === 403
+              ? "You do not have permission to delete this post."
+              : "Could not delete the post. Please try again."}
           </p>
         ) : null}
         <div className="mb-4 flex flex-col gap-2">

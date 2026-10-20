@@ -51,3 +51,21 @@ describe("QuackList", () => {
     expect(onReload).toHaveBeenCalledOnce()
   })
 })
+
+describe("QuackList deletion permissions", () => {
+  it.each([
+    ["u1", "user", true],
+    ["u2", "user", false],
+    ["u2", "admin", true],
+  ])("offers delete for viewer %s with role %s: %s", (id, role, canDelete) => {
+    render(
+      <QuackList
+        quacks={[quack()]}
+        currentUserId={id}
+        currentUserRole={role}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(Boolean(screen.queryByRole("button", { name: "Delete" }))).toBe(canDelete)
+  })
+})

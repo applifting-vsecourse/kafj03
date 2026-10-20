@@ -61,7 +61,7 @@ export function QuackItem({ quack, onOpen, onDelete, isDeleting }: QuackItemProp
             disabled={isDeleting}
             onClick={onDelete}
           >
-            {isDeleting ? "Mažu…" : "Smazat"}
+            {isDeleting ? "Deleting…" : "Delete"}
           </Button>
         ) : null}
         {onOpen ? (

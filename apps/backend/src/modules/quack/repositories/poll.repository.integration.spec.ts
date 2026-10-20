@@ -1,6 +1,8 @@
 import { PollsController } from '@/modules/quack/controllers/polls.controller';
 import { PollEventsService } from '@/modules/quack/services/poll-events.service';
+import { QuacksService } from '@/modules/quack/services/quacks.service';
 import { generatePollReport } from '@/scripts/polls/poll-report';
+import { Identity } from '@/shared/auth/domain/identity';
 import { AuthenticatedUserGuard } from '@/shared/auth/guards/authenticated-user.guard';
 import { Test } from '@nestjs/testing';
 import { filter, firstValueFrom, timeout } from 'rxjs';
@@ -382,16 +384,19 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
   });
 
   it('rejects deleting another author’s post and reports missing posts', async () => {
-    await expect(quacks.deleteQuack(quackId, users[1])).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      new QuacksService(quacks).deleteQuack(
+        quackId,
+        new Identity(users[1], '', '', 'user'),
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect((await quacks.getQuack(quackId, users[1])).id).toBe(quackId);
     await expect(quacks.getQuack('missing', users[0])).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    await expect(
-      quacks.deleteQuack('missing', users[0]),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(quacks.deleteQuack('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('reports a half-open 30-day cohort without texts or choices', async () => {
@@ -448,7 +453,7 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
     const launch = new Date(Date.now() - 60_000);
     const generatedAt = new Date();
     const before = await generatePollReport(prisma, launch, generatedAt);
-    await quacks.deleteQuack(quackId, users[0]);
+    await quacks.deleteQuack(quackId);
     expect(await generatePollReport(prisma, launch, generatedAt)).toEqual(
       before,
     );
