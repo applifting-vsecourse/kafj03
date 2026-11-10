@@ -25,14 +25,8 @@ export const seedDatabase = async (
     return;
   }
 
-  // Drop existing database data from all tables
-  try {
-    await prisma.$executeRawUnsafe(
-      'TRUNCATE TABLE "quack", "session", "account", "verification", "user" RESTART IDENTITY CASCADE;',
-    );
-  } catch (error) {
-    console.error('Error truncating tables:', error);
-  }
+  // A database without users can still contain erased discussion rows. Preserve
+  // those stable links; a destructive reset belongs only to the explicit reset command.
 
   console.log('Creating superadmin user');
 
@@ -164,11 +158,25 @@ Please stop tagging me.`,
 
   const now = Date.now();
 
+  let latestQuackId: string | undefined;
   for (const { author, minutesAgo, text } of exampleQuacks) {
-    await createQuack(prisma, {
+    const created = await createQuack(prisma, {
       text,
       userId: author.id,
       createdAt: new Date(now - minutesAgo * MINUTE_IN_MS),
+    });
+    latestQuackId = created.id;
+  }
+  if (latestQuackId) {
+    const reply = await createQuack(prisma, {
+      text: 'Does the swan accept feedback about the bread?',
+      userId: breadCritic.id,
+      parentId: latestQuackId,
+    });
+    await createQuack(prisma, {
+      text: 'Only in writing. Please use the discussion thread.',
+      userId: pondAdmin.id,
+      parentId: reply.id,
     });
   }
 };

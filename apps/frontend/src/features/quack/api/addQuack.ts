@@ -3,6 +3,7 @@ import { api } from "@/lib/api-client"
 import { quackSchema, type Quack, type QuackMood } from "@/features/quack/api/quackSchemas"
 
 export async function addQuack(input: {
+  parentId?: string
   text: string
   mood?: QuackMood
   poll?: { question: string; options: string[] }

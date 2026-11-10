@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query"
 
+import { isQuackErased } from "@/lib/quack-erasure"
+
 import { quackKeys } from "@/features/quack/api/quackKeys"
 import type { Poll, Quack } from "@/features/quack/api/quackSchemas"
 
@@ -23,11 +25,14 @@ export function optimisticVote(poll: Poll, optionId: string): Poll {
 }
 
 export function storePoll(queryClient: QueryClient, quackId: string, poll: Poll): void {
+  if (isQuackErased(queryClient, quackId)) return
   queryClient.setQueryData<Poll>(quackKeys.poll(quackId), (current) =>
     current && current.revision > poll.revision ? current : poll,
   )
   const update = (quack: Quack): Quack =>
-    quack.id === quackId && (!quack.poll || quack.poll.revision <= poll.revision)
+    !quack.deletedAt &&
+    quack.id === quackId &&
+    (!quack.poll || quack.poll.revision <= poll.revision)
       ? { ...quack, poll }
       : quack
   queryClient.setQueriesData<Quack[]>({ queryKey: quackKeys.lists() }, (current) =>

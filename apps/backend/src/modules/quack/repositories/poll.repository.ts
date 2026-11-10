@@ -17,6 +17,12 @@ export class PollRepository {
     optionId: string,
   ): Promise<PollResult> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "user" WHERE id = ${userId} FOR UPDATE`;
+      const quacks = await tx.$queryRaw<
+        { deletedAt: Date | null }[]
+      >`SELECT "deletedAt" FROM quack WHERE id = ${quackId} FOR UPDATE`;
+      if (!quacks.length || quacks[0].deletedAt)
+        throw new NotFoundException('Poll not found');
       // Every vote writer locks the poll first. ReadCommitted sees previously
       // committed votes, including writes from another device.
       const locked = await tx.$queryRaw<{ id: string }[]>`

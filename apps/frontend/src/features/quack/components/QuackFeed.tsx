@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { HTTPError } from "ky"
 import { Tabs } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-import { deleteQuack } from "@/features/quack/api/deleteQuack"
-import { quackKeys } from "@/features/quack/api/quackKeys"
-import type { Quack } from "@/features/quack/api/quackSchemas"
 import { quacksQueryOptions } from "@/features/quack/api/quacksQueryOptions"
 import { recordSearchUsage } from "@/features/quack/api/searchUsage"
 import { QuackList } from "@/features/quack/components/QuackList"
+import { useDeleteQuack } from "@/features/quack/hooks/useDeleteQuack"
 
 export function QuackFeed({
   currentUserId,
@@ -20,54 +18,34 @@ export function QuackFeed({
   currentUserId?: string
   currentUserRole?: string
 }) {
-  const client = useQueryClient()
-  const [scope, setScope] = useState<"all" | "mine">("all")
-  const deletion = useMutation({
-    mutationFn: deleteQuack,
-    onSuccess: async (_, id) => {
-      await client.cancelQueries({ queryKey: quackKeys.all() })
-      client.setQueriesData<Quack[]>({ queryKey: quackKeys.lists() }, (posts) =>
-        posts?.filter((post) => post.id !== id),
-      )
-      client.removeQueries({ queryKey: quackKeys.detail(id) })
-      await client.invalidateQueries({ queryKey: quackKeys.lists() })
-    },
-  })
-  const handleDelete = (id: string) => {
-    if (
-      !deletion.isPending &&
-      window.confirm(
-        "Permanently delete this post, including its poll and votes? This cannot be undone.",
-      )
-    ) {
-      deletion.mutate(id)
-    }
-  }
-  const deleteProps = {
-    currentUserId,
-    currentUserRole,
-    onDelete: handleDelete,
-    deletingId: deletion.isPending ? deletion.variables : undefined,
-  }
-  const [input, setInput] = useState("")
-  const [query, setQuery] = useState("")
+  const params = new URLSearchParams(window.location.search)
+  const [scope, setScope] = useState<"all" | "mine">(
+    params.get("scope") === "mine" ? "mine" : "all",
+  )
+  const [input, setInput] = useState(params.get("q") ?? "")
+  const [query, setQuery] = useState(input.trim())
   const normalizedInput = input.trim().replace(/\s+/g, " ")
-  const quacksQuery = useQuery(quacksQueryOptions(normalizedInput ? query : ""))
+  const result = useQuery(quacksQueryOptions(normalizedInput ? query : "", scope))
+  const deletion = useDeleteQuack()
   const recordedSearch = useRef("")
-  const [openedId, setOpenedId] = useState<string | null>(null)
-
   useEffect(() => {
     recordSearchUsage("feed")
   }, [])
-
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setQuery(normalizedInput)
-      setOpenedId(null)
-    }, 300)
-    return () => clearTimeout(timeout)
+    const timer = setTimeout(() => setQuery(normalizedInput), 300)
+    return () => clearTimeout(timer)
   }, [normalizedInput])
-
+  useEffect(() => {
+    const search = new URLSearchParams({
+      ...(query ? { q: query } : {}),
+      ...(scope === "mine" ? { scope } : {}),
+    })
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${search.size ? `?${search}` : ""}`,
+    )
+  }, [query, scope])
   const isWaiting = Boolean(normalizedInput) && normalizedInput !== query
   useEffect(() => {
     if (!normalizedInput) recordedSearch.current = ""
@@ -75,36 +53,31 @@ export function QuackFeed({
       !isWaiting &&
       query &&
       normalizedInput &&
-      quacksQuery.isSuccess &&
+      result.isSuccess &&
       recordedSearch.current !== query
     ) {
       recordSearchUsage("search")
       recordedSearch.current = query
     }
-  }, [normalizedInput, query, isWaiting, quacksQuery.isSuccess])
-
-  const isSearching = Boolean(normalizedInput)
-  const posts = (quacksQuery.data ?? []).filter(
-    (post) => scope === "all" || post.userId === currentUserId,
-  )
-  const selected = posts.find((quack) => quack.id === openedId)
-
+  }, [normalizedInput, query, isWaiting, result.isSuccess])
+  const posts = (result.data ?? [])
+    .filter(
+      (p) => !p.deletedAt || (scope === "all" && !query && !p.parentId && (p.replyCount ?? 0) > 0),
+    )
+    .filter((p) => scope === "all" || p.userId === currentUserId)
   return (
     <Tabs.Root
       value={scope}
-      onValueChange={(value) => {
-        setScope(value as "all" | "mine")
-        setOpenedId(null)
-      }}
+      onValueChange={(value) => setScope(value as "all" | "mine")}
     >
       <Tabs.List
-        aria-label="Filtr příspěvků"
+        aria-label="Post filter"
         className="mb-4 flex gap-2"
       >
         {(
           [
-            ["all", "Vše"],
-            ["mine", "Moje"],
+            ["all", "All"],
+            ["mine", "Mine"],
           ] as const
         ).map(([value, label]) => (
           <Tabs.Trigger
@@ -112,7 +85,7 @@ export function QuackFeed({
             value={value}
             asChild
           >
-            <Button variant={scope === value ? "default" : "outline"}>{label}</Button>
+            <Button variant={scope === value ? "secondary" : "outline"}>{label}</Button>
           </Tabs.Trigger>
         ))}
       </Tabs.List>
@@ -142,59 +115,36 @@ export function QuackFeed({
             onChange={(event) => setInput(event.target.value)}
           />
         </div>
-        {selected && isSearching && !isWaiting ? (
-          <section
-            aria-label="Opened post"
-            className="mb-4 border-b border-border pb-4"
-          >
-            <QuackList
-              quacks={[selected]}
-              {...deleteProps}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => setOpenedId(null)}
-            >
-              Close post
-            </Button>
-          </section>
-        ) : null}
         {scope === "mine" &&
-        !isSearching &&
-        !quacksQuery.isFetching &&
-        !quacksQuery.error &&
-        posts.length === 0 ? (
+        !normalizedInput &&
+        !result.isFetching &&
+        !result.error &&
+        !posts.length ? (
           <Button
             variant="link"
             onClick={() =>
               document.querySelector<HTMLTextAreaElement>("[data-new-quack-text]")?.focus()
             }
           >
-            Napsat první příspěvek
+            Write your first post
           </Button>
         ) : null}
         <QuackList
-          {...deleteProps}
+          returnTo={`/quacks?${new URLSearchParams({ ...(query ? { q: query } : {}), ...(scope === "mine" ? { scope } : {}) })}`}
           quacks={isWaiting ? [] : posts}
-          isLoading={isWaiting || quacksQuery.isFetching}
-          error={isWaiting ? undefined : (quacksQuery.error ?? undefined)}
-          onReload={() => void quacksQuery.refetch()}
+          isLoading={isWaiting || result.isPending}
+          error={isWaiting ? undefined : (result.error ?? undefined)}
+          onReload={() => void result.refetch()}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          onDelete={deletion.confirmDelete}
+          deletingId={deletion.isPending ? deletion.variables : undefined}
           emptyMessage={
-            isSearching
+            normalizedInput
               ? "No posts match your search"
               : scope === "mine"
-                ? "Zatím nemáte žádné příspěvky."
+                ? "You haven't posted yet."
                 : undefined
-          }
-          onOpen={
-            isSearching && !isWaiting
-              ? (id) => {
-                  setOpenedId(id)
-                  recordSearchUsage("open")
-                }
-              : undefined
           }
         />
       </Tabs.Content>

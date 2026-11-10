@@ -1,6 +1,8 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { sanitizeDeleted } from "@/lib/quack-erasure"
+
 import { pollSync } from "./pollSync"
 import { quackKeys } from "./quackKeys"
 import type { Poll } from "./quackSchemas"
@@ -124,6 +126,48 @@ describe("poll synchronization", () => {
     source.send("heartbeat")
     await vi.waitFor(() => expect(sync.snapshot()).toBe("connected"))
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("erases cached content and the poll when a quack-erased event arrives", async () => {
+    const { client, source } = setup()
+    client.setQueryData(quackKeys.detail("q"), {
+      id: "q",
+      text: "Secret",
+      userId: "u",
+      user: { id: "u" },
+    })
+    source.send("quack-erased", { quackId: "q", deletedAt: "2026-11-10T12:00:00Z" })
+    await vi.waitFor(() =>
+      expect(client.getQueryData(quackKeys.detail("q"))).toMatchObject({
+        text: null,
+        userId: null,
+        user: null,
+      }),
+    )
+    expect(client.getQueryData(quackKeys.poll("q"))).toBeUndefined()
+  })
+
+  it("recovers a missed erasure before refreshing the old poll on reconnect", async () => {
+    const { client, source, sync, fetch } = setup()
+    const observer = new QueryObserver(client, {
+      queryKey: quackKeys.detail("q"),
+      staleTime: Infinity,
+      initialData: { id: "q", text: "Old", deletedAt: null as string | null },
+      queryFn: () =>
+        Promise.resolve(
+          sanitizeDeleted(client, {
+            id: "q",
+            text: null as string | null,
+            deletedAt: "2026-11-10T12:00:00Z",
+          }),
+        ),
+    })
+    const stop = observer.subscribe(() => undefined)
+    cleanup.push(stop)
+    source.send("ready")
+    await vi.waitFor(() => expect(sync.snapshot()).toBe("connected"))
+    expect(client.getQueryData(quackKeys.detail("q"))).toMatchObject({ text: null })
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it("detects a silent connection loss and replaces the stream", async () => {

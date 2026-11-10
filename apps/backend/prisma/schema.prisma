@@ -33,15 +33,27 @@ enum QuackMood {
 
 model Quack {
   id        String     @id @default(cuid())
-  text      String     @db.Text
+  text      String?    @db.Text
   mood      QuackMood?
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  userId    String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @default(now()) @updatedAt
+  deletedAt DateTime?
   poll      Poll?
 
-  @@index([userId])
+  parentId String?
+  parent   Quack?  @relation("QuackReplies", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replies  Quack[] @relation("QuackReplies")
+
+  rootId      String?
+  root        Quack?  @relation("QuackThread", fields: [rootId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  threadItems Quack[] @relation("QuackThread")
+
+  @@index([userId, createdAt, id])
+  @@index([parentId, createdAt, id])
+  @@index([rootId, createdAt, id])
+  @@index([rootId, deletedAt])
   @@map("quack")
 }
 

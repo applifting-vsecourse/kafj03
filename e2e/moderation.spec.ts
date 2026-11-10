@@ -17,6 +17,7 @@ test('admin deletes another author’s quack; a regular user gets 403', async ({
   const userIds: string[] = [];
   const password = `E2e-${randomUUID()}`;
   const marker = `Moderation E2E ${randomUUID()}`;
+  const observer = await page.context().newPage();
 
   try {
     // Real BetterAuth sessions, separate cookie jars, and disposable accounts.
@@ -80,6 +81,32 @@ test('admin deletes another author’s quack; a regular user gets 403', async ({
       401,
     );
 
+    const replyResponse = await clients[1].post('/api/quacks', {
+      data: { text: `${marker} reply`, parentId: quack.id },
+    });
+    expect(replyResponse.status()).toBe(201);
+    const reply = await replyResponse.json();
+    expect(reply).toMatchObject({
+      rootId: quack.id,
+      parentId: quack.id,
+      userId: userIds[1],
+    });
+    expect((await clients[0].delete(`/api/quacks/${reply.id}`)).status()).toBe(
+      403,
+    );
+    const nestedResponse = await clients[0].post('/api/quacks', {
+      data: { text: `${marker} nested`, parentId: reply.id },
+    });
+    expect(nestedResponse.status()).toBe(201);
+    expect(await nestedResponse.json()).toMatchObject({
+      rootId: quack.id,
+      parentId: reply.id,
+    });
+    await observer.goto(`/quacks/${quack.id}`);
+    await expect(
+      observer.getByRole('article').filter({ hasText: marker }).first(),
+    ).toBeVisible();
+
     // A direct HTTP request also cannot bypass authorization.
     const denied = await clients[1].delete(`/api/quacks/${quack.id}`);
     expect(denied.status()).toBe(403);
@@ -104,18 +131,60 @@ test('admin deletes another author’s quack; a regular user gets 403', async ({
     await article.getByRole('button', { name: 'Delete', exact: true }).click();
     expect((await deleted).status()).toBe(204);
     await expect(article).toHaveCount(0);
-    expect((await clients[0].get(`/api/quacks/${quack.id}`)).status()).toBe(
-      404,
+    const tombstone = await clients[0].get(`/api/quacks/${quack.id}`);
+    expect(tombstone.status()).toBe(200);
+    expect(await tombstone.json()).toMatchObject({
+      text: null,
+      userId: null,
+      user: null,
+      replyCount: 2,
+    });
+    await expect(observer.locator(`#quack-${quack.id}`)).toContainText(
+      'This quack was deleted',
     );
+    await expect(observer.locator(`#quack-${reply.id}`)).toContainText(
+      `${marker} reply`,
+    );
+    const preservedReply = await clients[1].get(`/api/quacks/${reply.id}`);
+    expect(await preservedReply.json()).toMatchObject({
+      text: `${marker} reply`,
+      parent: { text: null, user: null },
+    });
+    await page
+      .locator(`#quack-${quack.id}`)
+      .getByRole('link', { name: 'Replies (2)' })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Discussion', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('textbox', { name: 'Reply', exact: true })
+      .fill(`${marker} after deletion`);
+    await page
+      .getByRole('button', { name: 'Reply', exact: true })
+      .last()
+      .click();
+    await expect(
+      page.getByRole('article').filter({ hasText: `${marker} after deletion` }),
+    ).toBeVisible();
   } finally {
-    // Cascades remove only this run's accounts, sessions and quacks.
+    // Erase only this run's content before deleting its disposable accounts.
     try {
       if (userIds.length) {
+        await database.query(
+          'DELETE FROM poll WHERE "quackId" IN (SELECT id FROM quack WHERE "userId" = ANY($1::text[]))',
+          [userIds],
+        );
+        await database.query(
+          'UPDATE quack SET text = NULL, mood = NULL, "userId" = NULL, "deletedAt" = now(), "updatedAt" = now() WHERE "userId" = ANY($1::text[])',
+          [userIds],
+        );
         await database.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [
           userIds,
         ]);
       }
     } finally {
+      await observer.close();
       await Promise.all(clients.map((client) => client.dispose()));
       await database.end();
     }

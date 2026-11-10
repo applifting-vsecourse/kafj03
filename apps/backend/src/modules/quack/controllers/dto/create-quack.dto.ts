@@ -1,6 +1,6 @@
 import { QUACK_MOODS, QuackMood } from '@/modules/quack/domain/quack';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsNotEmpty,
@@ -18,10 +18,19 @@ export class CreateQuackDto {
     example: 'Hello, world!',
     maxLength: 280,
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   @MaxLength(280)
   text!: string;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  parentId?: string;
 
   @ApiPropertyOptional({ type: CreatePollDto })
   @ValidateIf((_object, value: unknown) => value !== undefined)
