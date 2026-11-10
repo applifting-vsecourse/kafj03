@@ -31,7 +31,11 @@ export class PollEventsService implements OnModuleInit, OnModuleDestroy {
     });
     this.client = client;
     client.on('notification', (message) => {
-      if (message.channel !== 'quack_poll_changed' || !message.payload) return;
+      if (
+        !['quack_poll_changed', 'quack_erased'].includes(message.channel) ||
+        !message.payload
+      )
+        return;
       try {
         const data: unknown = JSON.parse(message.payload);
         if (
@@ -41,7 +45,13 @@ export class PollEventsService implements OnModuleInit, OnModuleDestroy {
           typeof data.quackId !== 'string'
         )
           return;
-        this.eventsSubject.next({ type: 'poll-changed', data });
+        this.eventsSubject.next({
+          type:
+            message.channel === 'quack_erased'
+              ? 'quack-erased'
+              : 'poll-changed',
+          data,
+        });
       } catch {
         this.logger.warn('Ignoring malformed poll notification');
       }
@@ -63,6 +73,7 @@ export class PollEventsService implements OnModuleInit, OnModuleDestroy {
     try {
       await client.connect();
       await client.query('LISTEN quack_poll_changed');
+      await client.query('LISTEN quack_erased');
       if (this.client === client && !this.isStopped) this.isConnected = true;
     } catch {
       this.logger.warn('Poll synchronization unavailable; reconnecting');

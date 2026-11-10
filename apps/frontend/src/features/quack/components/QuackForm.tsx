@@ -28,9 +28,14 @@ const MOOD_ICONS = { happy: Smile, sad: Frown, angry: Angry, silly: Laugh }
 
 type FormValues = QuackFormValues
 
-type QuackFormProps = { className?: string; defaultMood?: FormValues["mood"] }
+type QuackFormProps = {
+  className?: string
+  defaultMood?: FormValues["mood"]
+  parentId?: string
+  onCreated?: (id: string) => void
+}
 
-export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
+export function QuackForm({ className, defaultMood = "", parentId, onCreated }: QuackFormProps) {
   const addQuack = useAddQuack()
   const form = useForm<FormValues>({
     resolver: zodResolver(quackFormSchema),
@@ -57,6 +62,7 @@ export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
     addQuack.mutate(
       {
         text: values.text,
+        ...(parentId ? { parentId } : {}),
         ...(values.mood ? { mood: values.mood } : {}),
         ...(values.pollEnabled
           ? {
@@ -68,14 +74,16 @@ export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
           : {}),
       },
       {
-        onSuccess: () =>
+        onSuccess: (created) => {
           form.reset({
             text: "",
             mood: defaultMood,
             pollEnabled: false,
             question: "",
             options: [{ text: "" }, { text: "" }],
-          }),
+          })
+          onCreated?.(created.id)
+        },
       },
     )
   }
@@ -99,14 +107,15 @@ export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
             name="text"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1">
-                <FormLabel>New quack</FormLabel>
+                <FormLabel>{parentId ? "Reply" : "New quack"}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={3}
                     placeholder="Quack something..."
                     disabled={addQuack.isPending}
                     {...field}
-                    data-new-quack-text
+                    data-reply-text={parentId ? "true" : undefined}
+                    data-new-quack-text={!parentId ? "true" : undefined}
                   />
                 </FormControl>
                 <FormMessage />
@@ -259,7 +268,7 @@ export function QuackForm({ className, defaultMood = "" }: QuackFormProps) {
             disabled={addQuack.isPending}
           >
             {addQuack.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-            Quack
+            {parentId ? "Reply" : "Quack"}
           </Button>
         </div>
       </form>

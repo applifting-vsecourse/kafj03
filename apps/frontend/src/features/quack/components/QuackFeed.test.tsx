@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { QuackFeed } from "./QuackFeed"
 
@@ -27,6 +27,8 @@ const mount = (currentUserRole = "user") =>
       />
     </QueryClientProvider>,
   )
+
+beforeEach(() => window.history.replaceState({}, "", "/quacks"))
 
 afterEach(() => {
   vi.useRealTimers()
@@ -62,16 +64,16 @@ describe("QuackFeed", () => {
     mount()
     await screen.findByText("Other post")
     expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(1)
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Moje" }), { button: 0, ctrlKey: false })
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Mine" }), { button: 0, ctrlKey: false })
     expect(screen.queryByText("Other post")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
     expect(remove).not.toHaveBeenCalled()
     confirm.mockReturnValue(true)
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
-    await screen.findByText("Zatím nemáte žádné příspěvky.")
-    expect(screen.getByRole("button", { name: "Napsat první příspěvek" })).toBeInTheDocument()
+    await screen.findByText("You haven't posted yet.")
+    expect(screen.getByRole("button", { name: "Write your first post" })).toBeInTheDocument()
     expect(remove).toHaveBeenCalledWith("quacks/q1")
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Vše" }), { button: 0, ctrlKey: false })
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "All" }), { button: 0, ctrlKey: false })
     expect(screen.getByText("Other post")).toBeInTheDocument()
     expect(screen.queryByText(post.text)).not.toBeInTheDocument()
     confirm.mockRestore()
@@ -106,17 +108,19 @@ describe("QuackFeed", () => {
       await vi.advanceTimersByTimeAsync(1)
     })
     vi.useRealTimers()
-    await screen.findByRole("button", { name: "Open post by Petr" })
+    await screen.findByRole("link", { name: "Replies (0)" })
     expect(get).toHaveBeenLastCalledWith(
       "quacks",
       expect.objectContaining({ searchParams: { q: "pet" } }),
     )
     await waitFor(() => expect(usage).toHaveBeenCalledWith("search"))
-    fireEvent.click(screen.getByRole("button", { name: "Open post by Petr" }))
-    expect(screen.getByRole("region", { name: "Opened post" })).toBeInTheDocument()
+    const link = screen.getByRole("link", { name: "Replies (0)" })
+    expect(link.getAttribute("href")).toContain("/quacks/q1?")
+    link.addEventListener("click", (event) => event.preventDefault())
+    fireEvent.click(link)
     expect(usage).toHaveBeenCalledWith("open")
     fireEvent.change(screen.getByLabelText("Search posts"), { target: { value: "   " } })
-    expect(screen.queryByRole("button", { name: "Open post by Petr" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Opened post" })).not.toBeInTheDocument()
     expect(screen.getByText("Žlutý výlet")).toBeInTheDocument()
   })
 

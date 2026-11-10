@@ -11,11 +11,21 @@ export type QuackAuthor = {
 
 export type Quack = {
   id: string;
-  text: string;
+  text: string | null;
   mood?: QuackMood | null;
-  userId: string;
+  userId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  user?: QuackAuthor;
+  user?: QuackAuthor | null;
   poll?: PollResult | null;
+  deletedAt?: Date | null;
+  parentId?: string | null;
+  rootId?: string | null;
+  replyCount?: number;
+  parent?: {
+    id: string;
+    text: string | null;
+    deletedAt: Date | null;
+    user: QuackAuthor | null;
+  } | null;
 };

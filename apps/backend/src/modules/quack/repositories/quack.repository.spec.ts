@@ -1,36 +1,58 @@
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { mockDeep } from 'jest-mock-extended';
 import { QuackRepository } from './quack.repository';
 
-describe('QuackRepository deletion', () => {
-  it('deletes an authorized admin target without an author restriction', async () => {
-    const prisma = mockDeep<PrismaService>();
-    prisma.quack.deleteMany.mockResolvedValue({ count: 1 });
-    await new QuackRepository(prisma).deleteQuack('q1');
-    expect(prisma.quack.deleteMany).toHaveBeenCalledWith({
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function setup() {
+  const prisma = mockDeep<PrismaService>();
+  prisma.$transaction.mockImplementation(async (callback: unknown) =>
+    (callback as (tx: PrismaService) => Promise<void>)(prisma),
+  );
+  return { prisma, repository: new QuackRepository(prisma) };
+}
+describe('QuackRepository erasure', () => {
+  it('atomically removes the poll and clears content instead of deleting the quack', async () => {
+    const { prisma, repository } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ role: 'admin' }])
+      .mockResolvedValueOnce([{ id: 'q1', userId: 'other', deletedAt: null }]);
+    await repository.deleteQuack('q1', 'admin');
+    expect(prisma.poll.deleteMany).toHaveBeenCalledWith({
+      where: { quackId: 'q1' },
+    });
+    expect(prisma.quack.update).toHaveBeenCalledWith({
       where: { id: 'q1' },
+      data: {
+        text: null,
+        mood: null,
+        userId: null,
+        deletedAt: expect.any(Date),
+      },
     });
+    expect(prisma.quack.deleteMany).not.toHaveBeenCalled();
   });
-
-  it('loads the current persisted role', async () => {
-    const prisma = mockDeep<PrismaService>();
-    prisma.user.findUnique.mockResolvedValue({ role: 'user' } as never);
-    await expect(new QuackRepository(prisma).getUserRole('u1')).resolves.toBe(
-      'user',
-    );
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { id: 'u1' },
-      select: { role: true },
-    });
-  });
-
-  it('reports a missing post', async () => {
-    const prisma = mockDeep<PrismaService>();
-    prisma.quack.deleteMany.mockResolvedValue({ count: 0 });
-    prisma.quack.findUnique.mockResolvedValue(null);
+  it('checks the persisted role again while holding the transaction locks', async () => {
+    const { prisma, repository } = setup();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ role: 'user' }])
+      .mockResolvedValueOnce([{ id: 'q1', userId: 'other', deletedAt: null }]);
     await expect(
-      new QuackRepository(prisma).deleteQuack('missing'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+      repository.deleteQuack('q1', 'revoked-admin'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.poll.deleteMany).not.toHaveBeenCalled();
+  });
+  it('does not modify an already erased row', async () => {
+    const { prisma, repository } = setup();
+    prisma.$queryRaw.mockResolvedValue([{ id: 'q1', deletedAt: new Date() }]);
+    await repository.deleteQuack('q1');
+    expect(prisma.quack.update).not.toHaveBeenCalled();
+  });
+  it('reports a missing post', async () => {
+    const { prisma, repository } = setup();
+    prisma.$queryRaw.mockResolvedValue([]);
+    await expect(repository.deleteQuack('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

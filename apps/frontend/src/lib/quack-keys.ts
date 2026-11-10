@@ -4,5 +4,6 @@ export const quackKeys = {
   detail: (id: string) => [...quackKeys.details(), id] as const,
   polls: () => [...quackKeys.all(), "poll"] as const,
   poll: (id: string) => [...quackKeys.polls(), id] as const,
+  replies: (id: string) => [...quackKeys.all(), "replies", id] as const,
   lists: () => [...quackKeys.all(), "list"] as const,
 }

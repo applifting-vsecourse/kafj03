@@ -2,12 +2,13 @@ import type { QueryClient } from "@tanstack/react-query"
 import { z } from "zod"
 
 import { env } from "@/config/env"
+import { eraseCachedQuack, isQuackErased } from "@/lib/quack-erasure"
 
 import { quackKeys } from "@/features/quack/api/quackKeys"
 import type { Poll } from "@/features/quack/api/quackSchemas"
 
 const changeSchema = z.object({ quackId: z.string(), revision: z.number().int().nonnegative() })
-type SyncStatus = "connecting" | "connected" | "disconnected"
+export type SyncStatus = "connecting" | "connected" | "disconnected"
 
 class PollSync {
   private listeners = new Set<() => void>()
@@ -51,8 +52,25 @@ class PollSync {
   }
 
   private refresh(source: EventSource, generation: number): void {
+    this.setStatus("connecting")
     void this.queryClient
-      .refetchQueries({ queryKey: quackKeys.polls(), type: "active" }, { throwOnError: true })
+      .cancelQueries({ queryKey: quackKeys.all() })
+      .then(() =>
+        this.queryClient.refetchQueries(
+          { queryKey: quackKeys.all(), type: "active", predicate: (q) => q.queryKey[1] !== "poll" },
+          { throwOnError: true },
+        ),
+      )
+      .then(() =>
+        this.queryClient.refetchQueries(
+          {
+            queryKey: quackKeys.polls(),
+            type: "active",
+            predicate: (q) => !isQuackErased(this.queryClient, String(q.queryKey[2])),
+          },
+          { throwOnError: true },
+        ),
+      )
       .then(() => {
         if (this.generation === generation && source.readyState === EventSource.OPEN) {
           this.setStatus("connected")
@@ -61,6 +79,11 @@ class PollSync {
       .catch(() => {
         if (this.generation === generation) this.setStatus("disconnected")
       })
+  }
+
+  revalidate = (): void => {
+    if (this.source?.readyState === EventSource.OPEN) this.refresh(this.source, this.generation)
+    else this.setStatus("disconnected")
   }
 
   private connect(): void {
@@ -78,8 +101,19 @@ class PollSync {
     })
     source.addEventListener("ready", () => {
       this.lastMessageAt = Date.now()
-      // Every reconnect reloads open polls: NOTIFY is intentionally not a replay log.
+      // Every reconnect reloads open quacks: NOTIFY is intentionally not a replay log.
       this.refresh(source, generation)
+    })
+    source.addEventListener("quack-erased", (event) => {
+      this.lastMessageAt = Date.now()
+      try {
+        const data = z
+          .object({ quackId: z.string(), deletedAt: z.string() })
+          .parse(JSON.parse((event as MessageEvent<string>).data))
+        void eraseCachedQuack(this.queryClient, data.quackId, data.deletedAt)
+      } catch {
+        /* Ignore malformed events; reconnect still reloads all data. */
+      }
     })
     source.addEventListener("poll-changed", (event) => {
       this.lastMessageAt = Date.now()

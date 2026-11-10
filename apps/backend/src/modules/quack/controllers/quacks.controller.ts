@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { CreateQuackDto } from './dto/create-quack.dto';
 import { QuackResponseDto } from './dto/quack.response.dto';
+import { RepliesQueryDto } from './dto/replies-query.dto';
 import { SearchQuacksDto } from './dto/search-quacks.dto';
 import { SearchUsageDto } from './dto/search-usage.dto';
 
@@ -49,8 +50,30 @@ export class QuacksController {
     @User() user: Identity,
     @Query() query: SearchQuacksDto = {},
   ): Promise<QuackResponseDto[]> {
-    const quacks = await this.quacksService.getQuacks(query.q, user.id);
+    const quacks = await this.quacksService.getQuacks(
+      query.q,
+      user.id,
+      query.scope,
+    );
     return quacks.map(QuackResponseDto.fromDomain);
+  }
+
+  @Get(':id/replies')
+  async replies(
+    @Param('id') id: string,
+    @User() user: Identity,
+    @Query() query: RepliesQueryDto,
+  ): Promise<{ items: QuackResponseDto[]; nextCursor: string | null }> {
+    const page = await this.quacksService.getReplies(
+      id,
+      user,
+      query.cursor,
+      query.target,
+    );
+    return {
+      items: page.items.map(QuackResponseDto.fromDomain),
+      nextCursor: page.nextCursor,
+    };
   }
 
   @Get(':id')
@@ -96,6 +119,7 @@ export class QuacksController {
   ): Promise<QuackResponseDto> {
     const quack = await this.quacksService.createQuack(user, {
       text: body.text,
+      ...(body.parentId ? { parentId: body.parentId } : {}),
       mood: body.mood,
       ...(body.poll ? { poll: body.poll } : {}),
     });

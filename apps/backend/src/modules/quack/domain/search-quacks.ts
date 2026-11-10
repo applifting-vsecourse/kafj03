@@ -9,7 +9,10 @@ export function searchQuacks(quacks: Quack[], query: string): Quack[] {
   const phrase = terms.join(' ');
   return quacks
     .map((quack) => {
-      const fields = [normalize(quack.text), normalize(quack.user?.name ?? '')];
+      const fields = [
+        normalize(quack.text ?? ''),
+        normalize(quack.user?.name ?? ''),
+      ];
       const words = fields.flatMap((field) => field.split(/[^\p{L}\p{N}_]+/u));
       const matches = terms.every((term) =>
         fields.some((field) => field.includes(term)),

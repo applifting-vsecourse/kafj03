@@ -77,7 +77,7 @@ databaseDescribe('Poll repository (PostgreSQL)', () => {
   afterAll(async () => {
     if (!prisma) return;
     try {
-      await prisma.quack.deleteMany({ where: { id: { in: quackIds } } });
+      for (const id of quackIds) await quacks.deleteQuack(id);
       await prisma.pollUsage.deleteMany({ where: { pollId: { in: pollIds } } });
       await prisma.pollVoterUsage.deleteMany({
         where: { userId: { in: [...users, ...reportUserIds] } },

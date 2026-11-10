@@ -7,6 +7,7 @@ import type { Quack } from "@/features/quack/api/quackSchemas"
 import { QuackItem } from "@/features/quack/components/QuackItem"
 
 type QuackListProps = {
+  returnTo?: string
   quacks: Quack[]
   isLoading?: boolean
   error?: Error
@@ -20,6 +21,7 @@ type QuackListProps = {
 }
 
 export function QuackList({
+  returnTo,
   quacks,
   isLoading,
   error,
@@ -75,6 +77,7 @@ export function QuackList({
         <QuackItem
           key={quack.id}
           quack={quack}
+          returnTo={returnTo}
           onDelete={
             onDelete && (currentUserId === quack.userId || currentUserRole === "admin")
               ? () => onDelete(quack.id)

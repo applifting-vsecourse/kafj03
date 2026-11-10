@@ -91,7 +91,7 @@ describe('QuacksService deletion authorization', () => {
     );
     if (allowed) {
       await expect(result).resolves.toBeUndefined();
-      expect(repository.deleteQuack).toHaveBeenCalledWith('q1');
+      expect(repository.deleteQuack).toHaveBeenCalledWith('q1', id);
     } else {
       await expect(result).rejects.toBeInstanceOf(ForbiddenException);
       expect(repository.deleteQuack).not.toHaveBeenCalled();
