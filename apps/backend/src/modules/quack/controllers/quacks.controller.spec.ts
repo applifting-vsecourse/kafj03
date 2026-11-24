@@ -40,7 +40,7 @@ describe('QuacksController', () => {
     },
   );
 
-  it('allows creating a quack without a mood', async () => {
+  it('allows creating a post without mood', async () => {
     const service = mock<QuacksService>();
     service.createQuack.mockResolvedValue(quack);
     const controller = new QuacksController(service);
