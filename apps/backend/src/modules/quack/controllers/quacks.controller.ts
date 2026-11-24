@@ -9,8 +9,10 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotImplementedException,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
   UsePipes,
@@ -87,6 +89,16 @@ export class QuacksController {
     return QuackResponseDto.fromDomain(
       await this.quacksService.getQuack(id, user),
     );
+  }
+
+  @Put(':id/like')
+  addLike(): never {
+    throw new NotImplementedException('not implemented');
+  }
+
+  @Delete(':id/like')
+  removeLike(): never {
+    throw new NotImplementedException('not implemented');
   }
 
   @Delete(':id')
