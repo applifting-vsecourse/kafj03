@@ -41,6 +41,7 @@ model Quack {
   updatedAt DateTime   @default(now()) @updatedAt
   deletedAt DateTime?
   poll      Poll?
+  likes     Like[]
 
   parentId String?
   parent   Quack?  @relation("QuackReplies", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -55,6 +56,17 @@ model Quack {
   @@index([rootId, createdAt, id])
   @@index([rootId, deletedAt])
   @@map("quack")
+}
+
+model Like {
+  quackId String
+  userId  String
+  quack   Quack  @relation(fields: [quackId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([quackId, userId])
+  @@index([userId])
+  @@map("quack_like")
 }
 
 model Session {
@@ -118,6 +130,7 @@ model User {
   quacks        Quack[]
   searchUsage   SearchUsage[]
   pollVotes     PollVote[]
+  likes         Like[]
   role          UserRole      @default(user)
 
   bio         String?    @db.VarChar(160)

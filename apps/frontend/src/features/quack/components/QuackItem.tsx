@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/date"
 import type { Quack } from "@/features/quack/api/quackSchemas"
 import { recordSearchUsage } from "@/features/quack/api/searchUsage"
 import { Poll } from "@/features/quack/components/Poll"
+import { QuackLike } from "@/features/quack/components/QuackLike"
 import { UsersName } from "@/features/quack/components/UsersName"
 import { UsersUserName } from "@/features/quack/components/UsersUserName"
 
@@ -122,6 +123,13 @@ export function QuackItem({
           />
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
+          {quack.likeCount !== undefined && quack.likedByMe !== undefined ? (
+            <QuackLike
+              id={quack.id}
+              likeCount={quack.likeCount}
+              likedByMe={quack.likedByMe}
+            />
+          ) : null}
           {onReply ? (
             <a
               className="text-sm underline"

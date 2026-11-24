@@ -10,7 +10,10 @@ export function planLikeChange(
   userId: string,
   alreadyLiked: boolean,
   wantLiked: boolean,
-): LikeChange;
-export function planLikeChange(): LikeChange {
-  throw new Error('not implemented');
+): LikeChange {
+  if (alreadyLiked === wantLiked) return { operation: 'none' };
+  return {
+    operation: wantLiked ? 'insert' : 'delete',
+    like: { quackId: quack.id, userId },
+  };
 }

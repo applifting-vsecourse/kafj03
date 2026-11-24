@@ -9,7 +9,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotImplementedException,
   Param,
   Post,
   Put,
@@ -92,13 +91,21 @@ export class QuacksController {
   }
 
   @Put(':id/like')
-  addLike(): never {
-    throw new NotImplementedException('not implemented');
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async addLike(
+    @Param('id') id: string,
+    @User() user: Identity,
+  ): Promise<void> {
+    await this.quacksService.setLike(id, user, true);
   }
 
   @Delete(':id/like')
-  removeLike(): never {
-    throw new NotImplementedException('not implemented');
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeLike(
+    @Param('id') id: string,
+    @User() user: Identity,
+  ): Promise<void> {
+    await this.quacksService.setLike(id, user, false);
   }
 
   @Delete(':id')

@@ -37,6 +37,8 @@ export function sanitizeDeleted<T>(client: QueryClient, value: T): T {
     Object.assign(result, { text: null, user: null, deletedAt: date })
     if ("userId" in obj) {
       Object.assign(result, { userId: null, mood: null, poll: null, parent: null })
+      delete result.likeCount
+      delete result.likedByMe
     }
   }
   return result as T

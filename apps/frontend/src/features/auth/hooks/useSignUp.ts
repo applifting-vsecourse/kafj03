@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { authKeys } from "@/lib/auth-keys"
+import { resetQuackSession } from "@/lib/quack-cache"
 
 import { authClient } from "@/features/auth/lib/auth-client"
 
@@ -26,6 +27,7 @@ export function useSignUp() {
       if (error) throw new Error(error.message ?? "Sign up failed")
     },
     onSuccess: async () => {
+      await resetQuackSession(queryClient)
       await queryClient.invalidateQueries({ queryKey: authKeys.session() })
     },
   })

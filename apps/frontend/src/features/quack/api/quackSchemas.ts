@@ -44,6 +44,8 @@ export const quackSchema = z
     parentId: z.string().nullish(),
     rootId: z.string().nullish(),
     replyCount: z.number().int().nonnegative().optional(),
+    likeCount: z.number().int().nonnegative().optional(),
+    likedByMe: z.boolean().optional(),
     parent: z
       .object({
         id: z.string(),
