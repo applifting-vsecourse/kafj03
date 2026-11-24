@@ -352,5 +352,5 @@ V dohodnutém rozsahu nezůstává otevřené produktové rozhodnutí. Schéma, 
 - Migrace `20261110120000_quack_replies` a doplňující `20261110121000_protect_quack_history` chrání stav/vazby a zakazují fyzický DELETE i TRUNCATE; seed zachovává existující zástupné řádky.
 - Migrace byly ověřeny přehráním v dočasné PostgreSQL databázi s existujícím příspěvkem; kontrola zachovala jeho obsah i autora. Integrační testy používají skutečné PostgreSQL a izolované HTTP relace.
 - HTTP test odmítá cizí mazání (403) i nepřihlášeného uživatele (401). Při testovacím vypnutí obou autorizačních kontrol správně selhal s očekávaným 403 / skutečným 204; běžná implementace zůstala beze změny.
-- Kontroly: backend/frontend lint, typy, jednotkové a integrační testy, oba buildy a formátování. Postup integračního ověření je v `e2e/README.md`.
+- Kontroly: backend/frontend lint, typy, jednotkové a integrační testy, oba buildy a formátování. Postup integračního ověření je v `apps/frontend/e2e/README.md`.
 - Playwright test je rozšířený o odpovědi a druhou otevřenou stránku. Jeho poslední běh se zastavil před vytvořením účtu, protože lokální backend na portu 4050 neběžel; úplný průchod s reálným BetterAuth a prohlížečem tedy zbývá ověřit na běžící aplikaci. Servery nebyly automaticky spouštěny.

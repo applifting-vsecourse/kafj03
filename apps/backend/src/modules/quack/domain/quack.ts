@@ -22,6 +22,8 @@ export type Quack = {
   parentId?: string | null;
   rootId?: string | null;
   replyCount?: number;
+  likeCount?: number;
+  likedByMe?: boolean;
   parent?: {
     id: string;
     text: string | null;

@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
   UsePipes,
@@ -87,6 +88,24 @@ export class QuacksController {
     return QuackResponseDto.fromDomain(
       await this.quacksService.getQuack(id, user),
     );
+  }
+
+  @Put(':id/like')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async addLike(
+    @Param('id') id: string,
+    @User() user: Identity,
+  ): Promise<void> {
+    await this.quacksService.setLike(id, user, true);
+  }
+
+  @Delete(':id/like')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeLike(
+    @Param('id') id: string,
+    @User() user: Identity,
+  ): Promise<void> {
+    await this.quacksService.setLike(id, user, false);
   }
 
   @Delete(':id')

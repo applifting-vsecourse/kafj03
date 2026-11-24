@@ -6,6 +6,7 @@ import {
 } from '@/generated/prisma/client';
 import { CreatePoll } from '@/modules/quack/domain/poll';
 import { Quack, QuackMood } from '@/modules/quack/domain/quack';
+import { planLikeChange } from '@/modules/quack/domain/quack-likes';
 import {
   BadRequestException,
   ForbiddenException,
@@ -18,7 +19,8 @@ type LoadedQuack = PrismaQuack & {
   user?: PrismaUser | null;
   poll?: LoadedPoll | null;
   parent?: (PrismaQuack & { user: PrismaUser | null }) | null;
-  _count?: { threadItems: number };
+  likes?: { userId: string }[];
+  _count?: { threadItems: number; likes: number };
 };
 const author = (user?: PrismaUser | null): Quack['user'] =>
   user
@@ -41,6 +43,8 @@ const mapQuack = (q: LoadedQuack): Quack => ({
   user: author(q.user),
   poll: q.poll ? mapPollResult(q.poll) : null,
   replyCount: q._count?.threadItems ?? 0,
+  likeCount: q._count?.likes ?? 0,
+  likedByMe: Boolean(q.likes?.length),
   parent:
     !q.deletedAt && q.parent
       ? {
@@ -57,7 +61,10 @@ const includeQuack = (userId?: string) =>
     user: true,
     poll: { include: pollInclude(userId) },
     parent: { include: { user: true } },
-    _count: { select: { threadItems: { where: { deletedAt: null } } } },
+    likes: userId ? { where: { userId }, select: { userId: true } } : false,
+    _count: {
+      select: { likes: true, threadItems: { where: { deletedAt: null } } },
+    },
   }) satisfies Prisma.QuackInclude;
 export type ReplyPage = { items: Quack[]; nextCursor: string | null };
 
@@ -194,6 +201,32 @@ export class QuackRepository {
     return user?.role ?? null;
   }
 
+  async setLike(id: string, userId: string, liked: boolean): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // Lock the account first, then use the same quack lock as erasure.
+      const users = await tx.$queryRaw<
+        { id: string }[]
+      >`SELECT id FROM "user" WHERE id = ${userId} FOR KEY SHARE`;
+      if (!users.length)
+        throw new ForbiddenException('Account no longer exists');
+      const [quack] = await tx.$queryRaw<
+        Pick<PrismaQuack, 'id' | 'userId' | 'deletedAt'>[]
+      >`SELECT id, "userId", "deletedAt" FROM quack WHERE id = ${id} FOR UPDATE`;
+      if (!quack || quack.deletedAt)
+        throw new NotFoundException('Post not found');
+
+      const existing = await tx.like.findUnique({
+        where: { quackId_userId: { quackId: id, userId } },
+      });
+      const change = planLikeChange(quack, userId, Boolean(existing), liked);
+      if (change.operation === 'insert') {
+        await tx.like.create({ data: change.like });
+      } else if (change.operation === 'delete') {
+        await tx.like.delete({ where: { quackId_userId: change.like } });
+      }
+    });
+  }
+
   async deleteQuack(id: string, actorId?: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       // Lock the actor before the post, also serializing role changes and account deletion.
@@ -221,6 +254,7 @@ export class QuackRepository {
 
   private async erase(tx: Prisma.TransactionClient, id: string): Promise<void> {
     await tx.poll.deleteMany({ where: { quackId: id } });
+    await tx.like.deleteMany({ where: { quackId: id } });
     await tx.quack.update({
       where: { id },
       data: { text: null, mood: null, userId: null, deletedAt: new Date() },
@@ -242,10 +276,16 @@ export class QuackRepository {
         where: { options: { some: { votes: { some: { userId } } } } },
         select: { quackId: true },
       });
+      // Include liked posts so their erasure and the user cascade lock in the same order.
+      const liked = await tx.like.findMany({
+        where: { userId },
+        select: { quackId: true },
+      });
       const lockIds = [
         ...new Set([
           ...owned.map((q) => q.id),
           ...impacted.map((p) => p.quackId),
+          ...liked.map((like) => like.quackId),
         ]),
       ].sort();
       for (const id of lockIds)

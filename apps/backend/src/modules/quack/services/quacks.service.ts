@@ -40,6 +40,10 @@ export class QuacksService {
     return this.quackRepository.getQuack(id, user.id);
   }
 
+  async setLike(id: string, user: Identity, liked: boolean): Promise<void> {
+    await this.quackRepository.setLike(id, user.id, liked);
+  }
+
   async deleteQuack(id: string, user: Identity): Promise<void> {
     const quack = await this.quackRepository.getQuack(id, user.id);
     if (quack.deletedAt) return;

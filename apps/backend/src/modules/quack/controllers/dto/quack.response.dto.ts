@@ -1,5 +1,5 @@
 import { Quack, QUACK_MOODS, QuackMood } from '@/modules/quack/domain/quack';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PollResponseDto } from './poll.response.dto';
 
 class QuackUserDto {
@@ -47,6 +47,12 @@ export class QuackResponseDto {
   @ApiProperty()
   replyCount!: number;
 
+  @ApiPropertyOptional()
+  likeCount?: number;
+
+  @ApiPropertyOptional()
+  likedByMe?: boolean;
+
   @ApiProperty({ type: Object, nullable: true })
   parent!: Quack['parent'];
 
@@ -68,6 +74,10 @@ export class QuackResponseDto {
       parentId: quack.parentId ?? null,
       rootId: quack.rootId ?? null,
       replyCount: quack.replyCount ?? 0,
+      ...(!quack.deletedAt && {
+        likeCount: quack.likeCount ?? 0,
+        likedByMe: quack.likedByMe ?? false,
+      }),
       parent: quack.parent ?? null,
     };
   }

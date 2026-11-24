@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './apps/frontend/e2e',
   fullyParallel: false,
   workers: 1,
   use: {
@@ -9,5 +9,19 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  // Use the already running application; never start a second dev server.
+  // Local runs use the existing application. In CI Playwright owns both servers.
+  webServer: process.env.CI
+    ? [
+        {
+          command: 'pnpm backend start',
+          url: 'http://localhost:4050/api/health',
+          timeout: 120_000,
+        },
+        {
+          command: 'pnpm frontend dev',
+          url: 'http://localhost:3050',
+          timeout: 120_000,
+        },
+      ]
+    : undefined,
 });
