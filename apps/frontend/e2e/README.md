@@ -11,9 +11,11 @@ Defaults are `http://localhost:3050` and `http://localhost:4050`. Override them 
 
 The moderation test creates three disposable accounts through BetterAuth, assigns the admin role directly in the database, and creates a quack owned by the author. It checks that a signed-out DELETE returns 401 and that a regular user's direct DELETE returns 403 without deleting the post, then signs the admin into the browser and deletes the post through the UI. It creates direct and nested replies, checks that the root author cannot delete a foreign reply, and verifies HTTP 204 plus an anonymous HTTP 200 tombstone after moderation. A second browser tab must receive the deletion, keep the replies and remove the parent preview; posting to the erased root remains possible. Cleanup erases only this run’s content before removing its disposable accounts. Anonymous structural rows remain by design.
 
-No application servers are started by the test configuration. Playwright traces are retained on failure in the ignored `test-results/` directory.
+Locally, start both application servers before running Playwright. In CI, Playwright starts them after Prisma migrates the `quacker_e2e` database. Playwright traces are retained on failure in the ignored `test-results/` directory.
 
 ## PostgreSQL and HTTP integration tests
+
+From the repository root, run `pnpm backend docker:up:wait` and `pnpm backend test:int`. The suite uses `quacker_test` in the backend Docker Postgres on port 5433 and applies Prisma migrations automatically. `TEST_DATABASE_URL` can override the connection details while keeping the database name `quacker_test`. The suite clears its application tables between tests and after the last test.
 
 Use a disposable, migrated PostgreSQL database via `DATABASE_URL`, then run `pnpm backend test:quacks:integration`. This runs real repository/constraint/concurrency tests plus HTTP controller/service tests using isolated test sessions. The HTTP suite substitutes only the session adapter; the Playwright suite above additionally covers real BetterAuth sessions and the browser.
 
